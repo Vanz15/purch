@@ -1,5 +1,5 @@
 import json
-from llm.groq_client import get_client, MODEL_NAME
+from llm.groq_client import get_client, THINKING_MODEL
 from llm.extraction import CATEGORIES
 
 EDIT_TOOL = {
@@ -37,11 +37,11 @@ If the user tries to set the amount to 0 (e.g. "make that 0", "change it to 0"),
 def extract_edit(message: str):
     client = get_client()
     response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=THINKING_MODEL,
         messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": message}],
         tools=[EDIT_TOOL],
         tool_choice={"type": "function", "function": {"name": "extract_edit"}},
-        reasoning_effort="low",
+        #reasoning_effort="low",
     )
     tool_calls = response.choices[0].message.tool_calls
     if not tool_calls:

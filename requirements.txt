@@ -4,3 +4,4 @@ langchain-groq
 groq
 python-dotenv
 pytest
+python-dateutil

@@ -1,5 +1,5 @@
 import json
-from llm.groq_client import get_client, MODEL_NAME
+from llm.groq_client import get_client, THINKING_MODEL
 from llm.extraction import CATEGORIES
 
 BUDGET_TOOL = {
@@ -25,14 +25,14 @@ Valid categories: {', '.join(CATEGORIES)}."""
 def extract_budget(message: str):
     client = get_client()
     response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=THINKING_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": message},
         ],
         tools=[BUDGET_TOOL],
         tool_choice={"type": "function", "function": {"name": "extract_budget"}},
-        reasoning_effort="low",
+        #reasoning_effort="low",
     )
     tool_calls = response.choices[0].message.tool_calls
     if not tool_calls:

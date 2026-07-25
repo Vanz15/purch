@@ -4,7 +4,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL_NAME = "openai/gpt-oss-20b"
+# Two models, two jobs:
+# - THINKING_MODEL: structured extraction, classification, anything using
+#   tool-calling where we need reliable, predictable JSON output.
+# - CONVERSATION_MODEL: tone/personality responses, anything conversational
+#   where natural language quality (especially multilingual Taglish) matters
+#   more than raw extraction precision.
+THINKING_MODEL = "openai/gpt-oss-20b"
+CONVERSATION_MODEL = "llama-3.3-70b-versatile"
 
 _client = None
 

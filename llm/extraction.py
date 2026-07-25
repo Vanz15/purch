@@ -1,5 +1,5 @@
 import json
-from llm.groq_client import get_client, MODEL_NAME
+from llm.groq_client import get_client, THINKING_MODEL
 
 # Fixed category list — keeps categorization consistent instead of letting
 # the model invent new categories freely (see earlier discussion on category drift).
@@ -29,8 +29,12 @@ EXTRACT_TOOL = {
                     "enum": CATEGORIES,
                     "description": "Best-fit category for this purchase",
                 },
+                "date_reference": {
+                    "type": "string",
+                    "description": "If the user mentions when this happened (e.g. 'yesterday', 'last Monday', 'July 20'), extract it as-is. Empty string if not mentioned — assume today.",
+                },
             },
-            "required": ["item", "amount", "category"],
+            "required": ["item", "amount", "category", "date_reference"],
         },
     },
 }
@@ -54,7 +58,12 @@ describes a NEW purchase with a specific, real item (e.g. "fries 100 php",
   transaction vaguely ("that", "it") with no real item name, and must be
   treated as NOT a purchase, even though they contain a number.
 If the message has a number but no concrete item being purchased right now,
-do NOT call the tool."""
+do NOT call the tool.
+
+Also check whether the user mentions when the purchase happened (e.g.
+"yesterday", "last Friday", "July 20") and capture that in date_reference.
+If no date is mentioned, leave date_reference empty — it will default to today.
+"""
 
 
 def extract_transaction(message: str) -> dict | None:
@@ -63,14 +72,14 @@ def extract_transaction(message: str) -> dict | None:
     client = get_client()
 
     response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=THINKING_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": message},
         ],
         tools=[EXTRACT_TOOL],
         tool_choice="auto",
-        reasoning_effort="low",
+        #reasoning_effort="low",
     )
 
     choice = response.choices[0]
@@ -103,8 +112,31 @@ def extract_transaction(message: str) -> dict | None:
         category = "Other"
 
     return {
-        "item": args["item"],
-        "amount": amount,
-        "category": category,
-        "currency": currency,
+            "item": args["item"],
+            "amount": amount,
+            "category": category,
+            "currency": currency,
+            "tx_date": resolve_date_reference(args.get("date_reference")),
     }
+
+def resolve_date_reference(date_ref: str) -> str:
+    """Converts a natural date reference into an ISO date string (YYYY-MM-DD).
+    Returns None if empty or unparseable — caller should default to today."""
+    if not date_ref:
+        return None
+    from datetime import date, timedelta
+    today = date.today()
+    lower = date_ref.lower().strip()
+    if lower in ("today", ""):
+        return today.isoformat()
+    if lower == "yesterday":
+        return (today - timedelta(days=1)).isoformat()
+    try:
+        from dateutil import parser
+        parsed = parser.parse(date_ref, fuzzy=True, default=today)
+        resolved = parsed.date()
+        if resolved > today:
+            return today.isoformat()  # never log a purchase in the future
+        return resolved.isoformat()
+    except Exception:
+        return None

@@ -38,6 +38,7 @@ def try_extract_node(state: AgentState) -> AgentState:
     state["amount"] = extracted["amount"]
     state["category"] = extracted["category"]
     state["currency"] = extracted["currency"]
+    state["tx_date"] = extracted.get("tx_date")
     return state
 
 
@@ -50,6 +51,7 @@ def finalize_add_transaction_node(state: AgentState) -> AgentState:
         item=state["item"],
         amount=state["amount"],
         category=state["category"],
+        tx_date=state.get("tx_date"),
     )
     state["transaction_id"] = tx_id
 
@@ -63,7 +65,12 @@ def finalize_add_transaction_node(state: AgentState) -> AgentState:
     except Exception:
         comment = ""
 
-    base = f"Logged: {state['item']} — {symbol}{state['amount']:.2f} ({state['category']})"
+    from datetime import date
+    date_note = ""
+    if state.get("tx_date") and state["tx_date"] != date.today().isoformat():
+        date_note = f" (logged for {state['tx_date']})"
+
+    base = f"Logged: {state['item']} — {symbol}{state['amount']:.2f} ({state['category']}){date_note}"
     if state["category"] == "Other":
         base += " — wasn't sure exactly where this fits, tell me the real category if I got it wrong."
     response = f"{base}\n\n{comment}" if comment else base

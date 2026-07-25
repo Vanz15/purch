@@ -75,6 +75,7 @@ def run_agent(user_id: str, message: str) -> AgentState:
         "response": None,
         "pending_edit": None,
         "pending_conversion": None,
+        "tx_date": None
     }
     result = graph.invoke(initial_state)
 

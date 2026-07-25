@@ -1,4 +1,4 @@
-"""LastNa — chat-based budget tracker."""
+"""Purch — chat-based budget tracker."""
 import time
 import streamlit as st
 
@@ -9,20 +9,16 @@ from agent.graph import run_agent
 from ui.styles import inject_custom_css
 from ui.gauges import semi_circular_gauge
 
-st.set_page_config(
-    page_title="LastNa",
-    page_icon="assets/receipt_icon.png",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+RECEIPT_ICON = "assets/receipt_icon.png"
+st.set_page_config(page_title="Purch", page_icon=RECEIPT_ICON, layout="wide", initial_sidebar_state="expanded")
 
 # --- Auth gate ---
 if not st.user.is_logged_in:
     inject_custom_css()
     st.html("""
     <div class="empty-state">
-        <h2>💸 LastNa</h2>
-        <p>Your last purchase was not your last. And we know.</p>
+        <h2>Welcome to Purch!</h2>
+        <p>Your last purchase eventually leads to another. Log it. Own it.</p>
     </div>
     """)
     _, center, _ = st.columns([1, 1, 1])
@@ -91,7 +87,10 @@ def render_chat_message(msg: dict) -> None:
 
 def render_sidebar() -> None:
     with st.sidebar:
-        st.markdown("<h2 style='margin-bottom:24px;'>Insights</h2>", unsafe_allow_html=True)
+        st.markdown(
+        "<h2 style='margin:0.4rem 0 20px 0;'>Purch <span class='beta-badge'>Beta</span></h2>",
+        unsafe_allow_html=True,
+        )
 
         st.markdown("<p class='section-label'>Assistant Tone</p>", unsafe_allow_html=True)
         current_tone = get_user_tone(USER_ID)
@@ -142,6 +141,27 @@ def render_sidebar() -> None:
           </div>
         </div>
         """)
+
+        if "confirm_clear" not in st.session_state:
+            st.session_state.confirm_clear = False
+
+        if not st.session_state.confirm_clear:
+            if st.button("🗑️ Clear conversation", use_container_width=True):
+                st.session_state.confirm_clear = True
+                st.rerun()
+        else:
+            st.caption("Clear the chat view? Your data is safe either way.")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Yes, clear", use_container_width=True, type="primary"):
+                    st.session_state.messages = []
+                    st.session_state.confirm_clear = False
+                    st.rerun()
+            with col2:
+                if st.button("Cancel", use_container_width=True):
+                    st.session_state.confirm_clear = False
+                    st.rerun()
+
         if st.button("Log out", use_container_width=True):
             st.logout()
 
@@ -202,10 +222,10 @@ def main() -> None:
     <div class="lastna-header">
       <div class="header-brand">
         <div class="header-title-row">
-          <h1>LastNa</h1>
+          <h1>Purch.</h1>
           <span class="beta-badge">Beta</span>
         </div>
-        <p class="header-tagline">Your last purchase was not your last. And we know it. 😉</p>
+        <p class="header-tagline">Your last leads to another. Log it. Own it.</p>
       </div>
     </div>
     """, unsafe_allow_html=True)

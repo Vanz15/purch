@@ -1,6 +1,6 @@
 import json
 from datetime import date, timedelta
-from llm.groq_client import get_client, MODEL_NAME
+from llm.groq_client import get_client, THINKING_MODEL
 from llm.extraction import CATEGORIES
 
 QUERY_TOOL = {
@@ -65,14 +65,14 @@ def extract_query_filters(message: str) -> dict:
     """Returns {category, start_date, end_date} ready to use in a DB query."""
     client = get_client()
     response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=THINKING_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": message},
         ],
         tools=[QUERY_TOOL],
         tool_choice={"type": "function", "function": {"name": "extract_query_filters"}},
-        reasoning_effort="low",
+        #reasoning_effort="low",
     )
     args = json.loads(response.choices[0].message.tool_calls[0].function.arguments)
 

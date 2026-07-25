@@ -1,4 +1,4 @@
-from llm.groq_client import get_client, MODEL_NAME
+from llm.groq_client import get_client, THINKING_MODEL
 
 VALID_INTENTS = ["add_transaction", "query_transactions", "set_budget", "edit_transaction"]
 
@@ -44,14 +44,14 @@ def classify_intent(message: str) -> str:
     client = get_client()
     try:
         response = client.chat.completions.create(
-            model=MODEL_NAME,
+            model=THINKING_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": message},
             ],
             tools=[INTENT_TOOL],
             tool_choice={"type": "function", "function": {"name": "classify_intent"}},
-            reasoning_effort="low",
+            #reasoning_effort="low",
         )
         tool_calls = response.choices[0].message.tool_calls
         if not tool_calls:

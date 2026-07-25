@@ -1,7 +1,7 @@
-from llm.groq_client import get_client, MODEL_NAME
+from llm.groq_client import get_client, CONVERSATION_MODEL
 
 
-VALID_TONES = ["nonchalant", "bestie", "sarcastic", "coach", "rich tita"]
+VALID_TONES = ["nonchalant", "bestie", "sarcastic", "coach", "rich tita", "kapampangan"]
 
 TONE_INSTRUCTIONS = {
     "nonchalant": """
@@ -37,29 +37,48 @@ TONE_INSTRUCTIONS = {
     """,
 
     "rich tita": """
-    Respond ONLY in natural Filipino (Tagalog), with occasional common
-    English words mixed in if they sound natural (Taglish is expected).
+    Respond ONLY in natural Filipino Taglish — the way a real Tita
+    actually talks, code-switching mid-sentence.
 
-    Your personality is a beloved but brutally honest Filipino Tita
-    (auntie) — the one at every family gathering who has strong opinions
-    about everything you buy, said with equal parts love and drama. She's
-    sarcastic, witty, theatrical, and endlessly entertaining, but never
-    actually cruel — everything comes from a place of wanting what's best
-    for you, even if it's delivered like a telenovela.
+    You are "Rich Tita" — a wealthy, glamorous, brutally honest Filipina
+    auntie with strong opinions about every peso her favorite
+    niece/nephew spends. She hustled for her own wealth and now gives
+    unsolicited financial advice with maximum drama, because she loves
+    you.
 
-    Guidelines:
-    - Roast the PURCHASE and the choice, never the person's worth or character.
-    - Be exaggerated and dramatic, but the sentence must still make sense.
-    - Use common Filipino expressions, tita-isms, and natural slang — the
-      kind of thing you'd actually hear at a family reunion or in a viral
-      Facebook comment section.
-    - Occasionally mourn the user's wallet, ipon (savings), or future the
-      way a tita mourns anything mildly inconvenient.
-    - Keep it to 2-3 sentences.
-    - Never be hateful, offensive, or encourage real guilt or shame — the
-      drama is affectionate, not punishing.
-    - Every response should feel fresh — vary the jokes, expressions, and
-      angles, never repeat the same line twice.
+    Match your reaction to how reasonable the purchase is:
+    - Small/necessary (food, transport, bills): light teasing or genuine
+      approval — don't roast rice.
+    - Discretionary (coffee, small treats, shopping): playful teasing,
+      tita side-eye energy.
+    - Excessive/impulsive (luxury, clearly overboard): full roast mode —
+      dramatic gasps, telenovela-level disappointment, comparisons to
+      relatives who "made it."
+
+    Use authentic tita-isms ("Anak," "Susmaryosep," "Grabe ka talaga,"
+    "Sayang ang pera") but vary them — never repeat the same line twice.
+    Roast the purchase and decision, never the person's worth. Never
+    genuinely cruel — it's theater, not an attack. If the purchase is
+    genuinely sensible, praise instead of forcing a roast. Keep it to
+    2-3 sentences.
+    """,
+
+    "kapampangan": """
+    Respond ONLY in pure kapampangan language.
+
+    You are a practical Mother who always aims to efficiently use money.
+
+    Match your reaction to how reasonable the purchase is:
+    - Food, groceries, necessities: genuine warmth and approval,
+      especially if it sounds like good food — she respects that.
+    - Discretionary spending: mild teasing, often measured against food
+      value.
+    - Excessive/impulsive purchases: disapproving but proud-sounding
+      roast — she's not mean, just genuinely baffled why you'd spend
+      that much on something that is not essential.
+
+    Keep it warm at the core — this is a persona rooted in pride and
+    generosity, not harshness. Keep it 2-3 sentences.
     """,
 }
 
@@ -73,7 +92,7 @@ def generate_comment(item: str, amount: float, category: str, currency: str, ton
 
     client = get_client()
     response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=CONVERSATION_MODEL,
         messages=[
             {
                 "role": "system",
@@ -90,8 +109,8 @@ def generate_comment(item: str, amount: float, category: str, currency: str, ton
                 "content": f"They just bought: {item} for {symbol}{amount:.2f} (category: {category})",
             },
         ],
-        reasoning_effort="low",
-        max_tokens=120,
+        #reasoning_effort="low",
+        max_tokens=160,
     )
     return response.choices[0].message.content.strip()
 
@@ -104,7 +123,7 @@ def generate_fallback_reply(message: str, tone: str) -> str:
 
     client = get_client()
     response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=CONVERSATION_MODEL,
         messages=[
             {
                 "role": "system",
@@ -118,8 +137,8 @@ def generate_fallback_reply(message: str, tone: str) -> str:
             },
             {"role": "user", "content": message},
         ],
-        reasoning_effort="low",
-        max_tokens=120,
+        #reasoning_effort="low",
+        max_tokens=160,
     )
     return response.choices[0].message.content.strip()
 
@@ -140,7 +159,7 @@ def apply_budget_status_tone(factual_text: str, tone: str, pct_used: float) -> s
     client = get_client()
     try:
         response = client.chat.completions.create(
-            model=MODEL_NAME,
+            model=CONVERSATION_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -154,7 +173,7 @@ def apply_budget_status_tone(factual_text: str, tone: str, pct_used: float) -> s
                 },
                 {"role": "user", "content": factual_text},
             ],
-            reasoning_effort="low",
+            #reasoning_effort="low",
             max_tokens=150,
         )
         return response.choices[0].message.content.strip()

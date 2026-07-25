@@ -2,9 +2,7 @@ import sqlite3
 from db.connection import get_connection
 
 
-def insert_transaction(user_id: str, raw_text: str, item: str, amount: float, category: str) -> int:
-    """Inserts a transaction and returns its new id.
-    Raises ValueError if inputs are invalid, RuntimeError if the DB write fails."""
+def insert_transaction(user_id: str, raw_text: str, item: str, amount: float, category: str, tx_date: str = None) -> int:
     if amount <= 0:
         raise ValueError(f"amount must be positive, got {amount}")
     if not item or not category:
@@ -12,13 +10,22 @@ def insert_transaction(user_id: str, raw_text: str, item: str, amount: float, ca
 
     conn = get_connection()
     try:
-        cur = conn.execute(
-            """
-            INSERT INTO transactions (user_id, raw_text, item, amount, category)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (user_id, raw_text, item, amount, category),
-        )
+        if tx_date:
+            cur = conn.execute(
+                """
+                INSERT INTO transactions (user_id, raw_text, item, amount, category, tx_timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (user_id, raw_text, item, amount, category, f"{tx_date} 12:00:00"),
+            )
+        else:
+            cur = conn.execute(
+                """
+                INSERT INTO transactions (user_id, raw_text, item, amount, category)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (user_id, raw_text, item, amount, category),
+            )
         conn.commit()
         return cur.lastrowid
     except sqlite3.Error as e:
@@ -26,7 +33,6 @@ def insert_transaction(user_id: str, raw_text: str, item: str, amount: float, ca
         raise RuntimeError(f"Failed to insert transaction: {e}") from e
     finally:
         conn.close()
-
 
 def get_recent_transactions(user_id: str, limit: int = 10):
     """Returns the most recent transactions for a user, newest first."""
@@ -42,7 +48,10 @@ def get_recent_transactions(user_id: str, limit: int = 10):
             """,
             (user_id, limit),
         ).fetchall()
-        return [dict(row) for row in rows]
+        transactions = [dict(row) for row in rows]
+        for t in transactions:
+            t["tx_timestamp"] = to_local_time_str(t["tx_timestamp"])
+        return transactions
     except sqlite3.Error as e:
         raise RuntimeError(f"Failed to fetch transactions: {e}") from e
     finally:
@@ -102,6 +111,8 @@ def query_transactions(user_id: str, category: str = None, category_mode: str = 
 
         rows = conn.execute(query, params).fetchall()
         transactions = [dict(row) for row in rows]
+        for t in transactions:
+            t["tx_timestamp"] = to_local_time_str(t["tx_timestamp"])
         total = sum(t["amount"] for t in transactions)
         return {"transactions": transactions, "total": total, "count": len(transactions)}
     except sqlite3.Error as e:
@@ -185,7 +196,10 @@ def find_best_match_transaction(user_id: str, item_hint: str = None, limit: int 
         query += " ORDER BY tx_timestamp DESC LIMIT ?"
         params.append(limit)
         rows = conn.execute(query, params).fetchall()
-        return [dict(row) for row in rows]
+        transactions = [dict(row) for row in rows]
+        for t in transactions:
+            t["tx_timestamp"] = to_local_time_str(t["tx_timestamp"])
+        return transactions
     finally:
         conn.close()
 
@@ -238,3 +252,17 @@ def delete_transaction(tx_id: int):
         raise RuntimeError(f"Failed to delete transaction: {e}") from e
     finally:
         conn.close()
+
+from datetime import timedelta
+
+PH_OFFSET = timedelta(hours=8)  # Philippines is UTC+8
+
+def to_local_time_str(dt_or_str):
+    """Converts a stored UTC timestamp to a PH-local display string."""
+    from datetime import datetime
+    if isinstance(dt_or_str, str):
+        dt = datetime.strptime(dt_or_str, "%Y-%m-%d %H:%M:%S")
+    else:
+        dt = dt_or_str
+    local_dt = dt + PH_OFFSET
+    return local_dt.strftime("%Y-%m-%d %H:%M")

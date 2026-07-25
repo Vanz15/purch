@@ -14,3 +14,4 @@ class AgentState(TypedDict):
     response: Optional[str]
     pending_edit: Optional[dict] 
     pending_conversion: Optional[dict]
+    tx_date: Optional[str]
