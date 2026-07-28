@@ -266,3 +266,36 @@ def to_local_time_str(dt_or_str):
         dt = dt_or_str
     local_dt = dt + PH_OFFSET
     return local_dt.strftime("%Y-%m-%d %H:%M")
+
+def get_all_budgets_and_spending(user_id: str, categories: list):
+    """Single pass: returns {category: {limit, spent}} for every category."""
+    from datetime import date
+    start_of_month = date.today().replace(day=1).isoformat()
+
+    conn = get_connection()
+    try:
+        budget_rows = {}
+        for row in conn.execute(
+            "SELECT category, limit_amount FROM budgets WHERE user_id = ? AND period = 'monthly'",
+            (user_id,),
+        ).fetchall():
+            budget_rows[row["category"]] = row["limit_amount"]
+
+        spent_rows = {}
+        for row in conn.execute(
+            """
+            SELECT category, COALESCE(SUM(amount), 0) as total
+            FROM transactions
+            WHERE user_id = ? AND date(tx_timestamp) >= date(?)
+            GROUP BY category
+            """,
+            (user_id, start_of_month),
+        ).fetchall():
+            spent_rows[row["category"]] = row["total"]
+
+        return {
+            cat: {"limit": budget_rows.get(cat), "spent": spent_rows.get(cat, 0.0)}
+            for cat in categories
+        }
+    finally:
+        conn.close()
