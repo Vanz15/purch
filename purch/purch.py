@@ -1,8 +1,7 @@
-"""Purch Reflex application entry point.
+"""Canonical Purch Reflex application entry point.
 
-This is the only module that creates a Reflex App or registers pages. The
-normalized ``purch`` package is the canonical Reflex application target;
-legacy application shells must not instantiate a second Reflex App.
+The normalized ``purch`` package owns the sole Reflex App instance and all
+page registrations. This module is the only Reflex application entry point.
 """
 
 import reflex as rx
@@ -16,7 +15,6 @@ backend.bootstrap()
 from purch.pages.analytics import analytics_page
 from purch.pages.chat import chat_page
 from purch.pages.index import index_page
-from purch.pages.login import login_page
 from purch.theme import COLORS, ROUTES
 
 
@@ -44,7 +42,6 @@ app = rx.App(
 app.add_page(
     index, route=ROUTES["index"], title="Purch — Budget tracking, reimagined"
 )
-app.add_page(login_page, route=ROUTES["login"], title="Sign in · Purch")
 app.add_page(chat_page, route=ROUTES["chat"], title="Chat · Purch")
 app.add_page(
     analytics_page, route=ROUTES["analytics"], title="Analytics · Purch"

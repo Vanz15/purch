@@ -2,8 +2,6 @@
 
 import reflex as rx
 
-from purch.components.brand import brand
-from purch.components.layout import page_shell
 from purch.theme import CLASSES, ROUTES
 
 _TONE_CHIPS = [
@@ -62,7 +60,7 @@ def _hero() -> rx.Component:
                 ),
                 rx.el.a(
                     "Sign in",
-                    href=ROUTES["login"],
+                    href=ROUTES["index"],
                     class_name=(
                         "inline-flex items-center justify-center gap-2 rounded-xl "
                         "border border-[color:var(--purch-border)]/40 text-[color:var(--purch-parchment)] "
@@ -141,7 +139,7 @@ def _showcase() -> rx.Component:
                 ),
                 rx.el.a(
                     "Continue with Google",
-                    href=ROUTES["login"],
+                    href=ROUTES["index"],
                     class_name=f"{CLASSES['primary_button']} mt-4 w-full",
                 ),
                 class_name=f"{CLASSES['card']} p-6 mt-6 w-full max-w-md",
@@ -153,11 +151,11 @@ def _showcase() -> rx.Component:
 
 
 def index_page() -> rx.Component:
-    return page_shell(
+    return rx.el.main(
         rx.el.div(
             _hero(),
             _showcase(),
-            class_name="grid grid-cols-1 lg:grid-cols-2 min-h-[calc(100vh-3rem)]",
+            class_name="grid grid-cols-1 lg:grid-cols-2 w-full min-h-screen",
         ),
-        wide=True,
+        class_name="min-h-screen w-full bg-[color:var(--purch-parchment)]",
     )

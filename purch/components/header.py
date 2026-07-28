@@ -38,7 +38,7 @@ def header() -> rx.Component:
             rx.el.nav(
                 _nav_link("Chat", ROUTES["chat"]),
                 _nav_link("Analytics", ROUTES["analytics"]),
-                _nav_link("Sign in", ROUTES["login"]),
+                _nav_link("Sign in", ROUTES["index"]),
                 class_name="flex items-center gap-1",
             ),
             class_name=(

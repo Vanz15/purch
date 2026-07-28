@@ -10,7 +10,7 @@ load_dotenv()
 # - CONVERSATION_MODEL: tone/personality responses, anything conversational
 #   where natural language quality (especially multilingual Taglish) matters
 #   more than raw extraction precision.
-THINKING_MODEL = "openai/gpt-oss-20b"
+THINKING_MODEL = "openai/gpt-oss-120b"
 CONVERSATION_MODEL = "llama-3.3-70b-versatile"
 
 _client = None

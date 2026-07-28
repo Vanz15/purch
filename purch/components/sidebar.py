@@ -38,7 +38,7 @@ def _total_budget_card() -> rx.Component:
                 class_name="font-['DM_Mono'] text-lg text-[color:var(--purch-gold)] mr-0.5",
             ),
             rx.el.span(
-                f"{SidebarState.total_spent:.2f}",
+                SidebarState.total_spent.to_string(),
                 class_name="font-['DM_Mono'] text-2xl font-bold text-[color:var(--purch-gold)]",
             ),
             class_name="mb-2",
@@ -50,7 +50,13 @@ def _total_budget_card() -> rx.Component:
                     "from-[color:var(--purch-coral)] to-[color:var(--purch-gold)] "
                     "transition-all"
                 ),
-                style={"width": f"{SidebarState.total_pct}%"},
+                style={
+                    "width": rx.cond(
+                        SidebarState.total_pct > 100,
+                        "100%",
+                        f"{SidebarState.total_pct}%",
+                    )
+                },
             ),
             class_name="h-1.5 rounded-full bg-[color:var(--purch-dark-mid)] overflow-hidden",
         ),
@@ -109,7 +115,7 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                         "width": rx.cond(
                             row["pct"] > 100,
                             "100%",
-                            row["pct"].to_string() + "%",
+                            f"{row['pct']}%",
                         )
                     },
                 ),
@@ -162,29 +168,43 @@ def _tone_section() -> rx.Component:
                 "text-[color:var(--purch-muted)] mb-2"
             ),
         ),
-        rx.el.div(
-            rx.el.select(
-                rx.foreach(
-                    SidebarState.tone_options,
-                    lambda tone: rx.el.option(tone.title(), value=tone),
-                ),
-                default_value=SidebarState.current_tone,
-                on_change=SidebarState.set_tone,
+        rx.select.root(
+            rx.select.trigger(
                 class_name=(
-                    "w-full appearance-none rounded-xl border border-[color:var(--purch-border)] "
-                    "bg-[color:var(--purch-paper)] px-3 py-2 pr-9 text-sm "
-                    "text-[color:var(--purch-ink)] focus:border-[color:var(--purch-coral)] "
-                    "focus:outline-none"
+                    "w-full rounded-xl border border-[color:var(--purch-border)] "
+                    "bg-[color:var(--purch-paper)] px-3 py-2 text-sm "
+                    "text-[color:var(--purch-ink)] shadow-none outline-none "
+                    "transition-colors hover:border-[color:var(--purch-coral)] "
+                    "focus:border-[color:var(--purch-coral)] focus:ring-2 "
+                    "focus:ring-[color:var(--purch-coral)]/15"
                 ),
             ),
-            rx.icon(
-                "chevron-down",
-                class_name=(
-                    "pointer-events-none absolute right-3 top-1/2 h-4 w-4 "
-                    "-translate-y-1/2 text-[color:var(--purch-muted)]"
+            rx.select.content(
+                rx.select.group(
+                    rx.foreach(
+                        SidebarState.tone_options,
+                        lambda tone: rx.select.item(
+                            tone,
+                            value=tone,
+                            class_name=(
+                                "w-full cursor-pointer rounded-lg px-3 py-2 text-sm "
+                                "text-[color:var(--purch-ink)] outline-none "
+                                "hover:bg-[color:var(--purch-parchment)] "
+                                "focus:bg-[color:var(--purch-parchment)]"
+                            ),
+                        ),
+                    ),
                 ),
+                class_name=(
+                    "z-50 mt-1 w-[var(--radix-select-trigger-width)] rounded-xl "
+                    "border border-[color:var(--purch-border)] bg-[color:var(--purch-paper)] "
+                    "p-1 text-[color:var(--purch-ink)] shadow-[var(--purch-shadow-md)]"
+                ),
+                position="popper",
             ),
-            class_name="relative",
+            value=SidebarState.current_tone,
+            on_change=SidebarState.set_tone,
+            class_name="w-full",
         ),
         class_name="mb-4",
     )
@@ -219,7 +239,7 @@ def _profile_section() -> rx.Component:
         ),
         rx.el.a(
             "Sign in",
-            href=ROUTES["login"],
+            href=ROUTES["index"],
             class_name=(
                 "block mt-3 text-center text-xs font-semibold "
                 "text-[color:var(--purch-coral)] hover:text-[color:var(--purch-coral-light)] "

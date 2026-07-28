@@ -54,7 +54,6 @@ CLASSES: dict[str, str] = {
 # navigation links.
 ROUTES: dict[str, str] = {
     "index": "/",
-    "login": "/login",
     "chat": "/chat",
     "analytics": "/analytics",
 }
