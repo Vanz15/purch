@@ -1,4 +1,4 @@
-## Supabase Phase 3 Plan
-- [x] Connect the app to the existing Supabase Postgres database using the configured database URL, preserving SQLite only as a local fallback and avoiding any schema creation or migration at runtime.
-- [x] Make phase 3 chat functional against Supabase-backed transactions, budgets, tone preferences, edits, deletes, conversion confirmations, and interaction logging while preserving the Purch espresso/coral parchment design direction.
-- [x] Build functional analytics from Supabase data with readable KPI cards, category breakdown, recent spending trend, budget status, empty/loading/error states, and sidebar refresh behavior.
+## Deployment Websocket Stability Plan
+- [x] Harden chat event execution for deployment: preserve the Purch espresso/coral parchment design direction while ensuring Groq rate limits and backend exceptions always resolve the event cleanly with user-safe feedback.
+- [x] Reduce Groq token pressure in phase 3 agent calls by trimming prompts/model settings and adding lightweight retry/backoff for transient 429 errors so a single rate spike does not break the live websocket session.
+- [x] Verify the fixed chat and backend error paths with focused event tests that do not mutate Supabase data.

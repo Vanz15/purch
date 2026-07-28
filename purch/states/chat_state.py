@@ -101,13 +101,26 @@ class ChatState(rx.State):
             logging.exception(f"user_id resolution failed: {e}")
             return ANON_USER
 
-    def _ensure_ready(self, user_id: str) -> None:
-        """Idempotent bootstrap so send_message never depends on on_load."""
+    def _ensure_ready(self, user_id: str) -> bool:
+        """Prepare the backend without allowing setup errors to escape the event."""
         try:
             backend.bootstrap()
             backend.ensure_user(user_id)
+            return True
         except Exception as e:
             logging.exception(f"Chat bootstrap failed: {e}")
+            return False
+
+    def _append_assistant_message(self, text: str, meta: str = "") -> None:
+        self.messages.append(
+            ChatMessage(
+                role="assistant",
+                text=text,
+                meta=meta,
+                time=_now_str(),
+                alert=backend.classify_alert(text),
+            )
+        )
 
     @rx.event
     def dismiss_error(self):
@@ -149,7 +162,7 @@ class ChatState(rx.State):
 
     def _handle_pending_conversion(
         self, prompt: str, user_id: str
-    ) -> tuple[str, str] | None:
+    ) -> tuple[str, str, bool] | None:
         conv = self.pending_conversion
         if not conv:
             return None
@@ -177,12 +190,12 @@ class ChatState(rx.State):
             response = f"Logged: {item} — ₱{php_amount:.2f} ({category})"
             if comment:
                 response += f"\n\n{comment}"
-            return response, f"{category} • ₱{php_amount:.0f} • Today"
+            return response, f"{category} • ₱{php_amount:.0f} • Today", False
         except Exception as e:
             logging.exception(f"Conversion insert failed: {e}")
-            return safe_error_message(e), ""
+            return safe_error_message(e), "", True
 
-    def _handle_pending_edit(self, prompt: str) -> tuple[str, str] | None:
+    def _handle_pending_edit(self, prompt: str) -> tuple[str, str, bool] | None:
         edit = self.pending_edit
         if not edit:
             return None
@@ -193,7 +206,7 @@ class ChatState(rx.State):
             if edit.get("action") == "delete":
                 backend.delete_transaction(tx_id)
                 self.pending_edit = {}
-                return "Deleted.", ""
+                return "Deleted.", "", False
             new_amount = edit.get("new_amount")
             new_category = edit.get("new_category")
             backend.update_transaction(
@@ -202,10 +215,10 @@ class ChatState(rx.State):
                 category=str(new_category) if new_category else None,
             )
             self.pending_edit = {}
-            return "Updated!", ""
+            return "Updated!", "", False
         except Exception as e:
             logging.exception(f"Edit confirm failed: {e}")
-            return safe_error_message(e), ""
+            return safe_error_message(e), "", True
 
     @rx.event
     async def send_message(self, form_data: dict[str, str]):
@@ -217,23 +230,8 @@ class ChatState(rx.State):
         if self.is_sending:
             return
 
-        if self._rate_limited():
-            self.error_text = (
-                "Slow down a second — you've sent a lot of messages very "
-                "quickly. Try again in a minute."
-            )
-            return
-
-        if not (os.getenv("GROQ_API_KEY") or "").strip():
-            self.error_text = (
-                "The assistant isn't fully configured on the server right now. "
-                "Please try again shortly."
-            )
-            return
-
         now = _now_str()
         user_id = await self._user_id()
-        self._ensure_ready(user_id)
 
         self.messages.append(
             ChatMessage(
@@ -248,73 +246,104 @@ class ChatState(rx.State):
         self.draft_version += 1
         self.error_text = ""
         self.is_sending = True
-        yield  # flush user message + pending indicator
+        yield  # flush the user message + pending indicator
 
         response_text = ""
         meta = ""
+        fatal_error = False
 
         try:
-            # Pending-conversion path (numeric PHP reply after a USD extract)
-            conv_reply = self._handle_pending_conversion(prompt, user_id)
-            if conv_reply is not None:
-                response_text, meta = conv_reply
+            if self._rate_limited():
+                rate_error = RuntimeError("rate limit")
+                response_text = safe_error_message(rate_error)
+                self.error_text = safe_banner_message(rate_error)
+                fatal_error = True
+            elif not self._ensure_ready(user_id):
+                db_error = RuntimeError("database unavailable")
+                response_text = safe_error_message(db_error)
+                self.error_text = safe_banner_message(db_error)
+                fatal_error = True
+            elif (
+                not (os.getenv("GROQ_API_KEY") or "").strip()
+                and not self.pending_conversion
+                and not self.pending_edit
+            ):
+                credentials_error = RuntimeError("credentials unavailable")
+                response_text = safe_error_message(credentials_error)
+                self.error_text = safe_banner_message(credentials_error)
+                fatal_error = True
             else:
-                # Pending-edit confirmation path
-                edit_reply = self._handle_pending_edit(prompt)
-                if edit_reply is not None:
-                    response_text, meta = edit_reply
+                # Pending-conversion path (numeric PHP reply after a USD extract).
+                conv_reply = self._handle_pending_conversion(prompt, user_id)
+                if conv_reply is not None:
+                    response_text, meta, fatal_error = conv_reply
                 else:
-                    # Full agent round-trip
-                    result = backend.run_agent(user_id, prompt)
-                    response_text = result.get("response") or ""
-                    if result.get("pending_conversion"):
-                        pc = result["pending_conversion"]
-                        self.pending_conversion = {
-                            "item": str(pc.get("item", "")),
-                            "category": str(pc.get("category", "Other")),
-                            "original_amount": float(
-                                pc.get("original_amount", 0) or 0
-                            ),
-                            "original_currency": str(
-                                pc.get("original_currency", "")
-                            ),
-                        }
-                    if result.get("pending_edit"):
-                        pe = result["pending_edit"]
-                        self.pending_edit = {
-                            "action": str(pe.get("action", "update")),
-                            "transaction_id": int(
-                                pe.get("transaction_id", 0) or 0
-                            ),
-                            "new_amount": float(pe.get("new_amount") or 0),
-                            "new_category": str(pe.get("new_category") or ""),
-                        }
-                    if (
-                        result.get("transaction_id")
-                        and result.get("category")
-                        and result.get("amount") is not None
-                    ):
-                        meta = (
-                            f"{result['category']} • "
-                            f"₱{float(result['amount']):.0f} • Today"
-                        )
+                    # Pending-edit confirmation path.
+                    edit_reply = self._handle_pending_edit(prompt)
+                    if edit_reply is not None:
+                        response_text, meta, fatal_error = edit_reply
+                    else:
+                        # Full agent round-trip.
+                        result = backend.run_agent(user_id, prompt)
+                        response_text = result.get("response") or ""
+                        if result.get("pending_conversion"):
+                            pc = result["pending_conversion"]
+                            self.pending_conversion = {
+                                "item": str(pc.get("item", "")),
+                                "category": str(pc.get("category", "Other")),
+                                "original_amount": float(
+                                    pc.get("original_amount", 0) or 0
+                                ),
+                                "original_currency": str(
+                                    pc.get("original_currency", "")
+                                ),
+                            }
+                        if result.get("pending_edit"):
+                            pe = result["pending_edit"]
+                            self.pending_edit = {
+                                "action": str(pe.get("action", "update")),
+                                "transaction_id": int(
+                                    pe.get("transaction_id", 0) or 0
+                                ),
+                                "new_amount": float(pe.get("new_amount") or 0),
+                                "new_category": str(
+                                    pe.get("new_category") or ""
+                                ),
+                            }
+                        if (
+                            result.get("transaction_id")
+                            and result.get("category")
+                            and result.get("amount") is not None
+                        ):
+                            meta = (
+                                f"{result['category']} • "
+                                f"₱{float(result['amount']):.0f} • Today"
+                            )
         except Exception as e:
             logging.exception(f"send_message failed: {e}")
             response_text = safe_error_message(e)
             self.error_text = safe_banner_message(e)
+            fatal_error = True
 
-        alert = backend.classify_alert(response_text)
-
-        self.messages.append(
-            ChatMessage(
-                role="assistant",
-                text=response_text or "(no response)",
-                meta=meta,
-                time=_now_str(),
-                alert=alert,
+        # Every post-user branch reaches this single finalization point. This
+        # prevents duplicate assistant bubbles and guarantees the event cannot
+        # leave the websocket in a sending state after a provider or DB error.
+        if not response_text:
+            empty_error = RuntimeError("empty response")
+            response_text = safe_error_message(empty_error)
+            self.error_text = safe_banner_message(empty_error)
+            fatal_error = True
+        if not self.error_text:
+            self.error_text = (
+                ""
+                if not fatal_error
+                else safe_banner_message(RuntimeError("request failed"))
             )
-        )
+        self._append_assistant_message(response_text, meta)
         self.is_sending = False
 
-        # Refresh sidebar totals in case budgets/spending changed.
+        # Pending edit/conversion state is changed only by successful handling
+        # or by an agent response that explicitly creates a pending action.
+        if fatal_error:
+            return
         yield SidebarState.refresh

@@ -11,17 +11,6 @@ from purch.states.nav_state import NavState
 from purch.states.sidebar_state import BudgetRow, SidebarState
 from purch.theme import ROUTES
 
-_CATEGORY_EMOJI: dict[str, str] = {
-    "Food": "🍽️",
-    "Transport": "🚌",
-    "Bills": "🧾",
-    "Shopping": "🛍️",
-    "Entertainment": "🎮",
-    "Health": "❤️",
-    "Personal Care": "🧴",
-    "Other": "🗂️",
-}
-
 
 def _total_budget_card() -> rx.Component:
     return rx.el.div(
@@ -54,7 +43,7 @@ def _total_budget_card() -> rx.Component:
                     "width": rx.cond(
                         SidebarState.total_pct > 100,
                         "100%",
-                        SidebarState.total_pct.to_string() + "%",
+                        f"{SidebarState.total_pct}%",
                     )
                 },
             ),
@@ -121,7 +110,7 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                         "width": rx.cond(
                             row["pct"] > 100,
                             "100%",
-                            row["pct"].to_string() + "%",
+                            f"{row['pct']}%",
                         )
                     },
                 ),
@@ -248,7 +237,7 @@ def _profile_section() -> rx.Component:
         ),
         rx.el.a(
             "Sign in",
-            href=ROUTES["index"],
+            href=ROUTES["login"],
             class_name=(
                 "block mt-3 text-center text-xs font-semibold "
                 "text-[color:var(--purch-coral)] hover:text-[color:var(--purch-coral-light)] "

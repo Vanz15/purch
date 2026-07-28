@@ -1,7 +1,8 @@
 """Canonical Purch Reflex application entry point.
 
 The normalized ``purch`` package owns the sole Reflex App instance and all
-page registrations. Legacy application modules must not instantiate ``rx.App``.
+page registrations. Legacy application modules must not instantiate ``rx.App``;
+this module is the only supported Reflex entry point discovered by Reflex.
 """
 
 import reflex as rx
@@ -35,10 +36,14 @@ app = rx.App(
 )
 
 app.add_page(
-    index, route=ROUTES["index"], title="Purch — Budget tracking, reimagined"
+    index,
+    route=ROUTES["index"],
+    title="Purch — Budget tracking, reimagined",
 )
 app.add_page(login_page, route=ROUTES["login"], title="Sign in · Purch")
 app.add_page(chat_page, route=ROUTES["chat"], title="Chat · Purch")
 app.add_page(
     analytics_page, route=ROUTES["analytics"], title="Analytics · Purch"
 )
+
+__all__ = ["app", "index"]

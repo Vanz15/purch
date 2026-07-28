@@ -41,7 +41,12 @@ def classify_error(exc: BaseException) -> str:
         or "quota" in msg
     ):
         return "rate_limit"
-    if "groq_api_key" in msg or "api key" in msg or "api_key" in msg:
+    if (
+        "groq_api_key" in msg
+        or "api key" in msg
+        or "api_key" in msg
+        or "credential" in msg
+    ):
         return "credentials"
     if (
         "401" in msg

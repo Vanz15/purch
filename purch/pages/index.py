@@ -60,7 +60,7 @@ def _hero() -> rx.Component:
                 ),
                 rx.el.a(
                     "Sign in",
-                    href=ROUTES["index"],
+                    href=ROUTES["login"],
                     class_name=(
                         "inline-flex items-center justify-center gap-2 rounded-xl "
                         "border border-[color:var(--purch-border)]/40 text-[color:var(--purch-parchment)] "
@@ -139,7 +139,7 @@ def _showcase() -> rx.Component:
                 ),
                 rx.el.a(
                     "Continue with Google",
-                    href=ROUTES["index"],
+                    href=ROUTES["login"],
                     class_name=f"{CLASSES['primary_button']} mt-4 w-full",
                 ),
                 class_name=f"{CLASSES['card']} p-6 mt-6 w-full max-w-md",

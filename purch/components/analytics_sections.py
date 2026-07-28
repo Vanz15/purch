@@ -67,20 +67,22 @@ def _kpi_card(
     hint: rx.Component | str,
     tone: str = "default",
 ) -> rx.Component:
-    tone_class = rx.match(
-        tone,
-        ("coral", "text-[color:var(--purch-coral)]"),
-        ("gold", "text-[color:var(--purch-gold)]"),
-        ("danger", "text-[color:var(--purch-danger)]"),
-        "text-[color:var(--purch-ink)]",
-    )
     return rx.el.div(
         rx.el.div(eyebrow, class_name=CLASSES["eyebrow"]),
         rx.el.div(
             value,
-            class_name=(
-                "font-['Playfair_Display'] font-bold text-3xl mt-2",
-                tone_class,
+            class_name=rx.cond(
+                tone == "coral",
+                "font-['Playfair_Display'] font-bold text-3xl mt-2 text-[color:var(--purch-coral)]",
+                rx.cond(
+                    tone == "gold",
+                    "font-['Playfair_Display'] font-bold text-3xl mt-2 text-[color:var(--purch-gold)]",
+                    rx.cond(
+                        tone == "danger",
+                        "font-['Playfair_Display'] font-bold text-3xl mt-2 text-[color:var(--purch-danger)]",
+                        "font-['Playfair_Display'] font-bold text-3xl mt-2 text-[color:var(--purch-ink)]",
+                    ),
+                ),
             ),
         ),
         rx.el.div(
@@ -201,7 +203,7 @@ def _category_row(row: CategoryRow) -> rx.Component:
                     "width": rx.cond(
                         row["pct_of_total"] > 100,
                         "100%",
-                        row["pct_of_total"].to_string() + "%",
+                        f"{row['pct_of_total']}%",
                     )
                 },
             ),
@@ -268,16 +270,11 @@ def _trend_bar(point: TrendPoint, index: rx.Var) -> rx.Component:
             style={
                 "height": rx.cond(
                     point["total"] > 0,
-                    "calc(" + ratio.to_string() + "% + 4px)",
+                    f"calc({ratio}% + 4px)",
                     "3px",
                 )
             },
-            title=point["day"]
-            + " · ₱"
-            + point["total"].to_string()
-            + " · "
-            + point["count"].to_string()
-            + " tx",
+            title=f"{point['day']} · ₱{point['total']} · {point['count']} tx",
         ),
         class_name="flex flex-col justify-end h-full flex-1 min-w-0 px-[1px]",
     )
@@ -427,7 +424,7 @@ def _budget_card(row: BudgetStatusRow) -> rx.Component:
                     "width": rx.cond(
                         row["pct"] > 100,
                         "100%",
-                        row["pct"].to_string() + "%",
+                        f"{row['pct']}%",
                     )
                 },
             ),

@@ -11,6 +11,10 @@ keeps working unchanged.
 
 import logging
 
+from purch.groq_helper import install_safe_groq_calls
+
+install_safe_groq_calls()
+
 # IMPORTANT: apply the Postgres/Supabase patch BEFORE agent.* imports.
 # `agent.nodes` does `from db.models import insert_transaction, get_user_tone`
 # at module load, so the patch has to reach db.models first — otherwise
