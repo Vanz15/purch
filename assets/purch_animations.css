@@ -1,0 +1,21 @@
+/* Small animation keyframes used by the Reflex shell (fade-in for new
+   chat bubbles, subtle rise for the empty state). Kept separate from
+   the main theme file so palette edits stay easy to scan. */
+
+@keyframes purch-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.purch-fade-in {
+  animation: purch-fade-in 220ms ease-out both;
+}
+
+@keyframes purch-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.purch-rise {
+  animation: purch-rise 320ms ease-out both;
+}
