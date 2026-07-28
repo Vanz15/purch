@@ -291,8 +291,20 @@ class ChatState(rx.State):
                         )
         except Exception as e:
             logging.exception(f"send_message failed: {e}")
-            response_text = "Something went wrong on my end. Try again?"
-            self.error_text = f"Backend error: {e}"
+            error_text = str(e).lower()
+            if (
+                "429" in error_text
+                or "rate limit" in error_text
+                or "too many requests" in error_text
+            ):
+                response_text = (
+                    "The assistant is taking a quick breather because it received "
+                    "too many requests. Please try again in a little while."
+                )
+                self.error_text = "Please try again in a little while."
+            else:
+                response_text = "Something went wrong on my end. Try again?"
+                self.error_text = f"Backend error: {e}"
 
         alert = backend.classify_alert(response_text)
 

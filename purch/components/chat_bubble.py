@@ -59,7 +59,7 @@ def _assistant_bubble(msg: ChatMessage) -> rx.Component:
                 _alert_header(msg["alert"]),
                 rx.el.p(
                     msg["text"],
-                    class_name="text-[0.9rem] leading-relaxed whitespace-pre-wrap m-0",
+                    class_name="text-base leading-7 whitespace-pre-wrap m-0",
                 ),
                 rx.cond(
                     msg["meta"] != "",
@@ -67,7 +67,7 @@ def _assistant_bubble(msg: ChatMessage) -> rx.Component:
                         msg["meta"],
                         class_name=(
                             "mt-2 pt-2 border-t border-dashed border-[color:var(--purch-border)] "
-                            "font-['DM_Mono'] text-[0.7rem] text-[color:var(--purch-muted)]"
+                            "font-['DM_Mono'] text-xs text-[color:var(--purch-muted)]"
                         ),
                     ),
                     rx.fragment(),
@@ -87,7 +87,7 @@ def _assistant_bubble(msg: ChatMessage) -> rx.Component:
             ),
             rx.el.div(
                 msg["time"],
-                class_name="text-[0.65rem] text-[color:var(--purch-muted)] mt-1 ml-1",
+                class_name="text-xs text-[color:var(--purch-muted)] mt-1.5 ml-1",
             ),
             class_name="max-w-[75%]",
         ),
@@ -106,7 +106,7 @@ def _user_bubble(msg: ChatMessage) -> rx.Component:
         ),
         rx.el.div(
             msg["time"],
-            class_name="text-[0.65rem] text-[color:var(--purch-muted)] mt-1 mr-1 text-right",
+            class_name="text-xs text-[color:var(--purch-muted)] mt-1.5 mr-1 text-right",
         ),
         class_name="max-w-[75%] flex flex-col items-end",
     )

@@ -14,7 +14,7 @@ def _prompt_chip(prompt: str) -> rx.Component:
         on_click=lambda: ChatState.use_prompt(prompt),
         type="button",
         class_name=(
-            "px-3 py-1.5 rounded-full text-xs font-semibold "
+            "px-3.5 py-2 rounded-full text-sm font-semibold "
             "bg-[color:var(--purch-paper)] border border-[color:var(--purch-border)] "
             "text-[color:var(--purch-ink)] hover:border-[color:var(--purch-coral)] "
             "hover:text-[color:var(--purch-coral)] transition-colors"
@@ -37,10 +37,10 @@ def _empty_state() -> rx.Component:
             class_name=f"{CLASSES['display_heading']} text-xl mt-4",
         ),
         rx.el.p(
-            "Just type what you bought and I'll handle the rest. No forms, no "
-            "dropdowns — just chat.",
+            "Tell me what you bought, ask what you spent, or set a budget. "
+            "No forms, no dropdowns — just a quick, natural chat.",
             class_name=(
-                "text-sm text-[color:var(--purch-muted)] mt-2 max-w-sm "
+                "text-base text-[color:var(--purch-muted)] mt-3 max-w-md "
                 "text-center leading-relaxed"
             ),
         ),
@@ -102,7 +102,7 @@ def _composer() -> rx.Component:
                 auto_complete="off",
                 class_name=(
                     "flex-1 rounded-xl border border-[color:var(--purch-border)] "
-                    "bg-[color:var(--purch-paper)] px-4 py-3 text-sm "
+                    "bg-[color:var(--purch-paper)] px-4 py-3.5 text-base "
                     "placeholder:text-[color:var(--purch-muted)] focus:outline-none "
                     "focus:border-[color:var(--purch-coral)] "
                     "disabled:opacity-60 disabled:cursor-not-allowed "
@@ -114,7 +114,7 @@ def _composer() -> rx.Component:
                 type="submit",
                 disabled=ChatState.is_sending,
                 class_name=(
-                    f"{CLASSES['primary_button']} min-w-[6rem] "
+                    f"{CLASSES['primary_button']} min-w-[6.5rem] text-base "
                     "disabled:opacity-60 disabled:cursor-not-allowed "
                     "w-full sm:w-auto sm:shrink-0"
                 ),
@@ -173,7 +173,7 @@ def _header_row() -> rx.Component:
             rx.el.div("Chat", class_name=CLASSES["eyebrow"]),
             rx.el.h2(
                 "Talk to Purch",
-                class_name=f"{CLASSES['display_heading']} text-xl mt-0.5",
+                class_name=f"{CLASSES['display_heading']} text-2xl sm:text-3xl mt-1",
             ),
             class_name="flex-1 min-w-0",
         ),
@@ -192,7 +192,7 @@ def chat_page() -> rx.Component:
                     ChatState.has_messages, _message_list(), _empty_state()
                 ),
                 _composer(),
-                class_name=f"{CLASSES['card']} p-6 sm:p-8",
+                class_name=f"{CLASSES['card']} p-7 sm:p-9",
             ),
             class_name="max-w-3xl mx-auto w-full",
             on_mount=ChatState.on_load,

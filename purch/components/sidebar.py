@@ -109,7 +109,7 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                         "width": rx.cond(
                             row["pct"] > 100,
                             "100%",
-                            f"{row['pct']}%",
+                            row["pct"].to_string() + "%",
                         )
                     },
                 ),
@@ -172,14 +172,17 @@ def _tone_section() -> rx.Component:
                 on_change=SidebarState.set_tone,
                 class_name=(
                     "w-full appearance-none rounded-xl border border-[color:var(--purch-border)] "
-                    "bg-[color:var(--purch-paper)] px-3 py-2 text-sm "
+                    "bg-[color:var(--purch-paper)] px-3 py-2 pr-9 text-sm "
                     "text-[color:var(--purch-ink)] focus:border-[color:var(--purch-coral)] "
                     "focus:outline-none"
                 ),
             ),
             rx.icon(
                 "chevron-down",
-                class_name="pointer-events-none absolute right-3 h-4 w-4 text-[color:var(--purch-muted)]",
+                class_name=(
+                    "pointer-events-none absolute right-3 top-1/2 h-4 w-4 "
+                    "-translate-y-1/2 text-[color:var(--purch-muted)]"
+                ),
             ),
             class_name="relative",
         ),

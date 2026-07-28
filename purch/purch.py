@@ -11,6 +11,8 @@ import reflex as rx
 # re-exports the root agent/llm/db packages under a normalized namespace.
 from purch import backend
 
+backend.bootstrap()
+
 from purch.pages.analytics import analytics_page
 from purch.pages.chat import chat_page
 from purch.pages.index import index_page
