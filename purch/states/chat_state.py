@@ -17,6 +17,7 @@ namespace so nothing in the Streamlit fallback has to change.
 """
 
 import logging
+import os
 import time
 from datetime import datetime
 from typing import TypedDict
@@ -24,6 +25,7 @@ from typing import TypedDict
 import reflex as rx
 
 from purch import backend
+from purch.errors import safe_banner_message, safe_error_message
 from purch.states.sidebar_state import ANON_USER, SidebarState
 
 
@@ -168,8 +170,8 @@ class ChatState(rx.State):
                 comment = backend.generate_comment(
                     item, php_amount, category, "PHP", tone
                 )
-            except Exception:
-                logging.exception("Unexpected error")
+            except Exception as e:
+                logging.exception(f"Comment generation failed: {e}")
                 comment = ""
             self.pending_conversion = {}
             response = f"Logged: {item} — ₱{php_amount:.2f} ({category})"
@@ -178,7 +180,7 @@ class ChatState(rx.State):
             return response, f"{category} • ₱{php_amount:.0f} • Today"
         except Exception as e:
             logging.exception(f"Conversion insert failed: {e}")
-            return f"Couldn't log that: {e}", ""
+            return safe_error_message(e), ""
 
     def _handle_pending_edit(self, prompt: str) -> tuple[str, str] | None:
         edit = self.pending_edit
@@ -203,7 +205,7 @@ class ChatState(rx.State):
             return "Updated!", ""
         except Exception as e:
             logging.exception(f"Edit confirm failed: {e}")
-            return f"Couldn't apply that change: {e}", ""
+            return safe_error_message(e), ""
 
     @rx.event
     async def send_message(self, form_data: dict[str, str]):
@@ -219,6 +221,13 @@ class ChatState(rx.State):
             self.error_text = (
                 "Slow down a second — you've sent a lot of messages very "
                 "quickly. Try again in a minute."
+            )
+            return
+
+        if not (os.getenv("GROQ_API_KEY") or "").strip():
+            self.error_text = (
+                "The assistant isn't fully configured on the server right now. "
+                "Please try again shortly."
             )
             return
 
@@ -291,20 +300,8 @@ class ChatState(rx.State):
                         )
         except Exception as e:
             logging.exception(f"send_message failed: {e}")
-            error_text = str(e).lower()
-            if (
-                "429" in error_text
-                or "rate limit" in error_text
-                or "too many requests" in error_text
-            ):
-                response_text = (
-                    "The assistant is taking a quick breather because it received "
-                    "too many requests. Please try again in a little while."
-                )
-                self.error_text = "Please try again in a little while."
-            else:
-                response_text = "Something went wrong on my end. Try again?"
-                self.error_text = f"Backend error: {e}"
+            response_text = safe_error_message(e)
+            self.error_text = safe_banner_message(e)
 
         alert = backend.classify_alert(response_text)
 

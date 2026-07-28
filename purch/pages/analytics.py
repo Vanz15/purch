@@ -1,54 +1,119 @@
-"""Analytics page placeholder — charts land in a later phase against
-the existing `db.models` query helpers (imported via `backend.db`)."""
+"""Analytics page — functional dashboard backed by the Postgres/Supabase
+read-only aggregate queries in `purch.states.analytics_state`.
+
+Composition-only: every section renders through
+`purch.components.analytics_sections`, so the page file just handles
+layout, the page header (title + refresh action), and the top-level
+state-branching (loading / error / unavailable / empty / loaded).
+"""
 
 import reflex as rx
 
+from purch.components.analytics_sections import (
+    dashboard_body,
+    empty_dashboard,
+    error_banner,
+    loading_skeleton,
+    unavailable_banner,
+)
 from purch.components.layout import page_shell
+from purch.states.analytics_state import AnalyticsState
 from purch.theme import CLASSES
 
 
-def _stat_card(label: str, value: str, hint: str) -> rx.Component:
-    return rx.el.div(
-        rx.el.div(label, class_name=CLASSES["eyebrow"]),
-        rx.el.div(value, class_name="font-['DM_Mono'] text-2xl font-bold mt-1"),
-        rx.el.div(
-            hint, class_name="text-xs text-[color:var(--purch-muted)] mt-1"
+def _refresh_button() -> rx.Component:
+    return rx.el.button(
+        rx.cond(
+            AnalyticsState.is_loading,
+            rx.el.span("Refreshing…"),
+            rx.el.span("↻ Refresh"),
         ),
-        class_name=f"{CLASSES['card']} p-5",
+        on_click=AnalyticsState.refresh,
+        disabled=AnalyticsState.is_loading,
+        type="button",
+        class_name=(
+            CLASSES["outline_button"]
+            + " text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+        ),
+    )
+
+
+def _page_header() -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.div("Spending overview", class_name=CLASSES["eyebrow"]),
+            rx.el.h1(
+                "Analytics",
+                class_name=(
+                    "font-['Playfair_Display'] font-bold tracking-tight "
+                    "text-3xl sm:text-4xl text-[color:var(--purch-ink)] mt-1"
+                ),
+            ),
+            rx.el.p(
+                rx.cond(
+                    AnalyticsState.month_label != "",
+                    rx.el.span(
+                        AnalyticsState.month_label,
+                        rx.cond(
+                            AnalyticsState.last_refreshed != "",
+                            rx.el.span(
+                                " · Updated ",
+                                AnalyticsState.last_refreshed,
+                                class_name="text-[color:var(--purch-muted)]",
+                            ),
+                            rx.fragment(),
+                        ),
+                    ),
+                    rx.el.span(
+                        "Live data from Supabase",
+                        class_name="text-[color:var(--purch-muted)]",
+                    ),
+                ),
+                class_name=(
+                    "text-sm text-[color:var(--purch-secondary-text)] mt-2"
+                ),
+            ),
+            class_name="flex-1 min-w-0",
+        ),
+        _refresh_button(),
+        class_name=(
+            "flex flex-col sm:flex-row sm:items-end sm:justify-between "
+            "gap-3 mb-6"
+        ),
+    )
+
+
+def _content() -> rx.Component:
+    """Top-level branching. Order matters:
+    unavailable (SQLite fallback) → error → initial loading →
+    empty (no data) → dashboard.
+    """
+    return rx.cond(
+        AnalyticsState.unavailable,
+        unavailable_banner(),
+        rx.cond(
+            AnalyticsState.error_text != "",
+            error_banner(),
+            rx.cond(
+                (~AnalyticsState.has_loaded) & AnalyticsState.is_loading,
+                loading_skeleton(),
+                rx.cond(
+                    AnalyticsState.empty,
+                    empty_dashboard(),
+                    dashboard_body(),
+                ),
+            ),
+        ),
     )
 
 
 def analytics_page() -> rx.Component:
     return page_shell(
         rx.el.div(
-            rx.el.div("Spending overview", class_name=CLASSES["eyebrow"]),
-            rx.el.h1(
-                "Analytics",
-                class_name=f"{CLASSES['display_heading']} text-3xl mt-1",
-            ),
-            rx.el.p(
-                "Trend, category breakdown, and month-over-month comparisons will land here next.",
-                class_name="text-sm text-[color:var(--purch-secondary-text)] mt-2 max-w-xl",
-            ),
-            rx.el.div(
-                _stat_card("This month", "₱0", "Live data lands with phase 3"),
-                _stat_card("Top category", "—", "Awaiting transactions"),
-                _stat_card("Budget used", "0%", "Set budgets from chat"),
-                _stat_card("Vs last month", "—", "Comparison coming soon"),
-                class_name="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6",
-            ),
-            rx.el.div(
-                rx.el.div("📊", class_name="text-4xl"),
-                rx.el.div(
-                    "Analytics coming soon",
-                    class_name=f"{CLASSES['display_heading']} text-lg mt-2",
-                ),
-                rx.el.div(
-                    "The Reflex shell is in place — charts get wired against the existing SQLite backend in the next phase.",
-                    class_name="text-sm text-[color:var(--purch-muted)] mt-1 max-w-md text-center",
-                ),
-                class_name=f"{CLASSES['card']} mt-6 p-12 flex flex-col items-center justify-center text-center",
-            ),
+            _page_header(),
+            _content(),
+            class_name="w-full max-w-6xl mx-auto",
+            on_mount=AnalyticsState.on_load,
         ),
         with_sidebar=True,
     )

@@ -109,7 +109,15 @@ class SidebarState(rx.State):
             return
         user_id = await self._current_user()
         try:
+            backend.ensure_user(user_id)
             backend.set_user_tone(user_id, tone)
             self.current_tone = tone
+            return rx.toast.success(
+                f"Tone set to {tone.title()}", duration=2000
+            )
         except Exception as e:
             logging.exception(f"Set tone failed: {e}")
+            return rx.toast.error(
+                "Couldn't save that tone right now. Please try again.",
+                duration=3000,
+            )

@@ -5,3 +5,4 @@ groq
 python-dotenv
 pytest
 python-dateutil
+supabase

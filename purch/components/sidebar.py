@@ -54,7 +54,7 @@ def _total_budget_card() -> rx.Component:
                     "width": rx.cond(
                         SidebarState.total_pct > 100,
                         "100%",
-                        f"{SidebarState.total_pct}%",
+                        SidebarState.total_pct.to_string() + "%",
                     )
                 },
             ),
@@ -62,11 +62,14 @@ def _total_budget_card() -> rx.Component:
         ),
         rx.el.div(
             rx.el.span(
-                f"{SidebarState.total_pct}%",
+                rx.el.span(SidebarState.total_pct.to_string(), "%"),
                 class_name="font-['DM_Mono'] text-[0.6rem] text-[color:var(--purch-parchment)]/70",
             ),
             rx.el.span(
-                f"₱{SidebarState.total_limit:.2f}",
+                rx.el.span(
+                    "₱",
+                    SidebarState.total_limit.to_string(),
+                ),
                 class_name="font-['DM_Mono'] text-[0.6rem] text-[color:var(--purch-parchment)]/70",
             ),
             class_name="flex items-center justify-between mt-1",
@@ -95,7 +98,10 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                     class_name="text-xs font-medium text-[color:var(--purch-ink)]",
                 ),
                 rx.el.span(
-                    f"₱{row['spent']:.2f}",
+                    rx.el.span(
+                        "₱",
+                        row["spent"].to_string(),
+                    ),
                     class_name=rx.cond(
                         row["over"],
                         "font-['DM_Mono'] text-[0.7rem] text-[color:var(--purch-danger)]",
@@ -115,7 +121,7 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                         "width": rx.cond(
                             row["pct"] > 100,
                             "100%",
-                            f"{row['pct']}%",
+                            row["pct"].to_string() + "%",
                         )
                     },
                 ),
@@ -123,11 +129,14 @@ def _budget_row(row: BudgetRow) -> rx.Component:
             ),
             rx.el.div(
                 rx.el.span(
-                    f"{row['pct']}%",
+                    rx.el.span(row["pct"].to_string(), "%"),
                     class_name="font-['DM_Mono'] text-[0.6rem] text-[color:var(--purch-muted)]",
                 ),
                 rx.el.span(
-                    f"₱{row['limit']:.2f}",
+                    rx.el.span(
+                        "₱",
+                        row["limit"].to_string(),
+                    ),
                     class_name="font-['DM_Mono'] text-[0.6rem] text-[color:var(--purch-muted)]",
                 ),
                 class_name="flex items-center justify-between mt-0.5",

@@ -1,4 +1,4 @@
-## Purch Landing/Login Cleanup Plan
-- [x] Merge the landing and sign-in experience into `/` with no public header, preserving the Purch espresso/coral parchment design direction and routing all sign-in/landing links to the retained root page.
-- [x] Remove the obsolete `/login` page route and update navigation/links so chat and analytics remain reachable without exposing a separate login route.
-- [x] Refine the tone selector dropdown so its options feel visually connected to the select container and align cleanly with the sidebar surface.
+## Supabase Phase 3 Plan
+- [x] Connect the app to the existing Supabase Postgres database using the configured database URL, preserving SQLite only as a local fallback and avoiding any schema creation or migration at runtime.
+- [x] Make phase 3 chat functional against Supabase-backed transactions, budgets, tone preferences, edits, deletes, conversion confirmations, and interaction logging while preserving the Purch espresso/coral parchment design direction.
+- [x] Build functional analytics from Supabase data with readable KPI cards, category breakdown, recent spending trend, budget status, empty/loading/error states, and sidebar refresh behavior.

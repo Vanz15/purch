@@ -11,6 +11,19 @@ keeps working unchanged.
 
 import logging
 
+# IMPORTANT: apply the Postgres/Supabase patch BEFORE agent.* imports.
+# `agent.nodes` does `from db.models import insert_transaction, get_user_tone`
+# at module load, so the patch has to reach db.models first — otherwise
+# the agent will have captured the SQLite implementations by name.
+try:
+    from purch.db_backend import USE_POSTGRES, apply_patch_if_needed
+
+    _POSTGRES_ACTIVE = apply_patch_if_needed()
+except Exception as e:
+    logging.exception(f"Postgres patch failed to apply: {e}")
+    USE_POSTGRES = False
+    _POSTGRES_ACTIVE = False
+
 try:
     from db.connection import ensure_user, init_db
     from db.models import (
@@ -111,7 +124,12 @@ _INITIALIZED = False
 
 
 def bootstrap() -> None:
-    """Initialize DB once per process. Safe to call repeatedly."""
+    """Prepare the DB layer once per process. Safe to call repeatedly.
+
+    Under Postgres the patch (already applied at module import) has made
+    `init_db()` a no-op — the Supabase schema is managed out-of-band and
+    we're forbidden from running DDL at runtime. Under SQLite this still
+    creates the local `data/budget.db` from `db/schema.sql`."""
     global _INITIALIZED
     if _INITIALIZED or not _BACKEND_AVAILABLE:
         return
@@ -120,6 +138,11 @@ def bootstrap() -> None:
         _INITIALIZED = True
     except Exception as e:
         logging.exception(f"DB init failed: {e}")
+
+
+def is_postgres() -> bool:
+    """True iff the process is talking to Postgres/Supabase."""
+    return bool(_POSTGRES_ACTIVE)
 
 
 def is_available() -> bool:
