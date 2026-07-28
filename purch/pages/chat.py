@@ -105,7 +105,8 @@ def _composer() -> rx.Component:
                     "bg-[color:var(--purch-paper)] px-4 py-3 text-sm "
                     "placeholder:text-[color:var(--purch-muted)] focus:outline-none "
                     "focus:border-[color:var(--purch-coral)] "
-                    "disabled:opacity-60 disabled:cursor-not-allowed"
+                    "disabled:opacity-60 disabled:cursor-not-allowed "
+                    "w-full min-w-0 sm:flex-1"
                 ),
             ),
             rx.el.button(
@@ -114,10 +115,11 @@ def _composer() -> rx.Component:
                 disabled=ChatState.is_sending,
                 class_name=(
                     f"{CLASSES['primary_button']} min-w-[6rem] "
-                    "disabled:opacity-60 disabled:cursor-not-allowed"
+                    "disabled:opacity-60 disabled:cursor-not-allowed "
+                    "w-full sm:w-auto sm:shrink-0"
                 ),
             ),
-            class_name="flex items-center gap-2",
+            class_name="flex flex-col sm:flex-row items-stretch sm:items-center gap-2",
         ),
         on_submit=ChatState.send_message,
         reset_on_submit=True,

@@ -2,6 +2,7 @@
 
 import reflex as rx
 
+from purch.components.brand import brand
 from purch.components.layout import page_shell
 from purch.theme import CLASSES, ROUTES
 
@@ -30,6 +31,10 @@ def _hero() -> rx.Component:
     return rx.el.section(
         rx.el.div(
             rx.el.div(
+                "Purch",
+                class_name="font-['Playfair_Display'] font-bold text-3xl text-[color:var(--purch-gold)]",
+            ),
+            rx.el.div(
                 "Budget tracking, reimagined", class_name=CLASSES["eyebrow"]
             ),
             rx.el.h1(
@@ -44,13 +49,14 @@ def _hero() -> rx.Component:
             ),
             rx.el.p(
                 "Log expenses the way you text — casually. Purch extracts the item, "
-                "amount, and category, and reacts in the tone you pick.",
+                "amount, and category, and reacts in the tone you pick. No forms, "
+                "no dropdowns — just chat.",
                 class_name="mt-5 max-w-xl text-[color:var(--purch-muted)] leading-relaxed",
             ),
             _tone_row(),
             rx.el.div(
                 rx.el.a(
-                    "Open the chat",
+                    "Open the chat →",
                     href=ROUTES["chat"],
                     class_name=CLASSES["primary_button"],
                 ),
@@ -66,9 +72,9 @@ def _hero() -> rx.Component:
                 ),
                 class_name="mt-8 flex flex-wrap items-center gap-3",
             ),
-            class_name="flex flex-col justify-center px-6 sm:px-10 lg:px-16 py-16",
+            class_name="flex flex-col justify-center gap-5 px-6 sm:px-10 lg:px-16 py-16 lg:py-20",
         ),
-        class_name="bg-[color:var(--purch-dark)]",
+        class_name="bg-[color:var(--purch-dark)] flex items-center",
     )
 
 
@@ -130,7 +136,7 @@ def _showcase() -> rx.Component:
                     class_name=f"{CLASSES['display_heading']} text-2xl",
                 ),
                 rx.el.p(
-                    "Sign in with Google and start tracking the way you actually talk.",
+                    "Sign in with Google to start tracking the way you actually talk.",
                     class_name="text-sm text-[color:var(--purch-secondary-text)] mt-1",
                 ),
                 rx.el.a(

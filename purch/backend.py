@@ -22,7 +22,7 @@ try:
         update_transaction,
     )
     from llm.extraction import CATEGORIES
-    from llm.tone import VALID_TONES, generate_comment
+    from llm.tone import VALID_TONES, generate_comment as _generate_comment
 
     from agent.graph import run_agent
 
@@ -84,7 +84,7 @@ except Exception as e:
     def set_user_tone(user_id, tone):
         pass  # type: ignore
 
-    def generate_comment(*a, **k):
+    def _generate_comment(*a, **k):
         return ""  # type: ignore
 
     def ensure_user(user_id):
@@ -92,6 +92,19 @@ except Exception as e:
 
     def init_db():
         pass  # type: ignore
+
+
+def generate_comment(
+    item: str, amount: float, category: str, currency: str, tone: str
+) -> str:
+    """Generate a tone reaction while treating neutral/default as no reaction."""
+    if tone not in VALID_TONES:
+        return ""
+    try:
+        return _generate_comment(item, amount, category, currency, tone)
+    except Exception as e:
+        logging.exception(f"Comment generation failed: {e}")
+        return ""
 
 
 _INITIALIZED = False

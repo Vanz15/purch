@@ -98,20 +98,17 @@ def _assistant_bubble(msg: ChatMessage) -> rx.Component:
 def _user_bubble(msg: ChatMessage) -> rx.Component:
     return rx.el.div(
         rx.el.div(
-            rx.el.div(
-                rx.el.p(
-                    msg["text"],
-                    class_name="text-[0.9rem] leading-relaxed whitespace-pre-wrap m-0",
-                ),
-                class_name="purch-bubble-user",
+            rx.el.p(
+                msg["text"],
+                class_name="text-[0.9rem] leading-relaxed whitespace-pre-wrap m-0",
             ),
-            rx.el.div(
-                msg["time"],
-                class_name="text-[0.65rem] text-[color:var(--purch-muted)] mt-1 mr-1 text-right",
-            ),
-            class_name="max-w-[75%] flex flex-col items-end",
+            class_name="purch-bubble-user",
         ),
-        class_name="flex justify-end mb-4",
+        rx.el.div(
+            msg["time"],
+            class_name="text-[0.65rem] text-[color:var(--purch-muted)] mt-1 mr-1 text-right",
+        ),
+        class_name="max-w-[75%] flex flex-col items-end",
     )
 
 

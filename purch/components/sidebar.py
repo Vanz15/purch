@@ -22,15 +22,6 @@ _CATEGORY_EMOJI: dict[str, str] = {
     "Other": "🗂️",
 }
 
-_TONE_EMOJI: dict[str, str] = {
-    "nonchalant": "🤍",
-    "bestie": "✨",
-    "sarcastic": "🙄",
-    "coach": "💪",
-    "rich tita": "💅",
-    "kapampangan": "🍖",
-}
-
 
 def _total_budget_card() -> rx.Component:
     return rx.el.div(
@@ -47,7 +38,7 @@ def _total_budget_card() -> rx.Component:
                 class_name="font-['DM_Mono'] text-lg text-[color:var(--purch-gold)] mr-0.5",
             ),
             rx.el.span(
-                SidebarState.total_spent.to_string(),
+                f"{SidebarState.total_spent:.2f}",
                 class_name="font-['DM_Mono'] text-2xl font-bold text-[color:var(--purch-gold)]",
             ),
             class_name="mb-2",
@@ -59,17 +50,17 @@ def _total_budget_card() -> rx.Component:
                     "from-[color:var(--purch-coral)] to-[color:var(--purch-gold)] "
                     "transition-all"
                 ),
-                style={"width": SidebarState.total_pct.to_string() + "%"},
+                style={"width": f"{SidebarState.total_pct}%"},
             ),
             class_name="h-1.5 rounded-full bg-[color:var(--purch-dark-mid)] overflow-hidden",
         ),
         rx.el.div(
             rx.el.span(
-                SidebarState.total_pct.to_string() + "%",
+                f"{SidebarState.total_pct}%",
                 class_name="font-['DM_Mono'] text-[0.6rem] text-[color:var(--purch-parchment)]/70",
             ),
             rx.el.span(
-                "₱" + SidebarState.total_limit.to_string(),
+                f"₱{SidebarState.total_limit:.2f}",
                 class_name="font-['DM_Mono'] text-[0.6rem] text-[color:var(--purch-parchment)]/70",
             ),
             class_name="flex items-center justify-between mt-1",
@@ -79,17 +70,26 @@ def _total_budget_card() -> rx.Component:
 
 
 def _budget_row(row: BudgetRow) -> rx.Component:
-    icon = _CATEGORY_EMOJI.get(row["category"], "🗂️")
     return rx.cond(
         row["limit"] > 0,
         rx.el.div(
             rx.el.div(
                 rx.el.span(
-                    icon + " " + row["category"],
+                    rx.match(
+                        row["category"],
+                        ("Food", "🍽️ Food"),
+                        ("Transport", "🚌 Transport"),
+                        ("Bills", "🧾 Bills"),
+                        ("Shopping", "🛍️ Shopping"),
+                        ("Entertainment", "🎮 Entertainment"),
+                        ("Health", "❤️ Health"),
+                        ("Personal Care", "🧴 Personal Care"),
+                        "🗂️ Other",
+                    ),
                     class_name="text-xs font-medium text-[color:var(--purch-ink)]",
                 ),
                 rx.el.span(
-                    "₱" + row["spent"].to_string(),
+                    f"₱{row['spent']:.2f}",
                     class_name=rx.cond(
                         row["over"],
                         "font-['DM_Mono'] text-[0.7rem] text-[color:var(--purch-danger)]",
@@ -109,7 +109,7 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                         "width": rx.cond(
                             row["pct"] > 100,
                             "100%",
-                            row["pct"].to_string() + "%",
+                            f"{row['pct']}%",
                         )
                     },
                 ),
@@ -117,11 +117,11 @@ def _budget_row(row: BudgetRow) -> rx.Component:
             ),
             rx.el.div(
                 rx.el.span(
-                    row["pct"].to_string() + "%",
+                    f"{row['pct']}%",
                     class_name="font-['DM_Mono'] text-[0.6rem] text-[color:var(--purch-muted)]",
                 ),
                 rx.el.span(
-                    "₱" + row["limit"].to_string(),
+                    f"₱{row['limit']:.2f}",
                     class_name="font-['DM_Mono'] text-[0.6rem] text-[color:var(--purch-muted)]",
                 ),
                 class_name="flex items-center justify-between mt-0.5",
@@ -153,31 +153,6 @@ def _budgets_section() -> rx.Component:
     )
 
 
-def _tone_option(tone: str) -> rx.Component:
-    emoji = _TONE_EMOJI.get(tone, "•")
-    label = tone.title()
-    is_active = SidebarState.current_tone == tone
-    return rx.el.button(
-        rx.el.span(emoji, class_name="mr-1.5"),
-        rx.el.span(label),
-        on_click=lambda: SidebarState.set_tone(tone),
-        type="button",
-        class_name=rx.cond(
-            is_active,
-            (
-                "flex items-center px-2.5 py-1.5 rounded-full text-[0.7rem] font-semibold "
-                "bg-[color:var(--purch-coral)] text-white transition-colors"
-            ),
-            (
-                "flex items-center px-2.5 py-1.5 rounded-full text-[0.7rem] font-medium "
-                "bg-[color:var(--purch-paper)] border border-[color:var(--purch-border)] "
-                "text-[color:var(--purch-ink)] hover:border-[color:var(--purch-coral)] "
-                "hover:text-[color:var(--purch-coral)] transition-colors"
-            ),
-        ),
-    )
-
-
 def _tone_section() -> rx.Component:
     return rx.el.div(
         rx.el.p(
@@ -188,38 +163,27 @@ def _tone_section() -> rx.Component:
             ),
         ),
         rx.el.div(
-            rx.foreach(SidebarState.tone_options, _tone_option),
-            class_name="flex flex-wrap gap-1.5",
+            rx.el.select(
+                rx.foreach(
+                    SidebarState.tone_options,
+                    lambda tone: rx.el.option(tone.title(), value=tone),
+                ),
+                default_value=SidebarState.current_tone,
+                on_change=SidebarState.set_tone,
+                class_name=(
+                    "w-full appearance-none rounded-xl border border-[color:var(--purch-border)] "
+                    "bg-[color:var(--purch-paper)] px-3 py-2 text-sm "
+                    "text-[color:var(--purch-ink)] focus:border-[color:var(--purch-coral)] "
+                    "focus:outline-none"
+                ),
+            ),
+            rx.icon(
+                "chevron-down",
+                class_name="pointer-events-none absolute right-3 h-4 w-4 text-[color:var(--purch-muted)]",
+            ),
+            class_name="relative",
         ),
         class_name="mb-4",
-    )
-
-
-def _nav_section() -> rx.Component:
-    def link(label: str, icon: str, href: str) -> rx.Component:
-        return rx.el.a(
-            rx.el.span(icon, class_name="mr-2"),
-            rx.el.span(label),
-            href=href,
-            class_name=(
-                "flex items-center px-2 py-2 rounded-lg text-sm font-medium "
-                "text-[color:var(--purch-ink)] hover:bg-[color:var(--purch-paper)] "
-                "hover:text-[color:var(--purch-coral)] transition-colors"
-            ),
-        )
-
-    return rx.el.div(
-        rx.el.p(
-            "Navigate",
-            class_name=(
-                "font-['DM_Mono'] text-[0.6rem] uppercase tracking-[0.08em] "
-                "text-[color:var(--purch-muted)] mb-2"
-            ),
-        ),
-        link("Chat", "💬", ROUTES["chat"]),
-        link("Analytics", "📊", ROUTES["analytics"]),
-        link("Home", "🏠", ROUTES["index"]),
-        class_name="mb-4 flex flex-col gap-0.5",
     )
 
 
@@ -280,7 +244,6 @@ def sidebar() -> rx.Component:
                     _total_budget_card(),
                     _budgets_section(),
                     _tone_section(),
-                    _nav_section(),
                     _profile_section(),
                     class_name="p-4 h-full overflow-y-auto",
                 ),

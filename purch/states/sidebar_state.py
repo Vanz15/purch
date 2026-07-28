@@ -30,7 +30,7 @@ class SidebarState(rx.State):
     total_limit: float = 0.0
     total_pct: int = 0
     current_tone: str = "nonchalant"
-    tone_options: list[str] = list(backend.VALID_TONES)
+    tone_options: list[str] = list(backend.VALID_TONES) + ["neutral"]
     categories: list[str] = list(backend.CATEGORIES)
     display_name: str = "Guest"
     is_loaded: bool = False
