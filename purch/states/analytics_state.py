@@ -30,8 +30,13 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from purch import backend
+from purch.time_utils import (
+    format_stored_timestamp,
+    month_label,
+    now_display,
+    today_in_timezone,
+)
 
-ANON_USER = "anonymous@purch.local"
 _TREND_DAYS = 30
 _RECENT_LIMIT = 10
 
@@ -131,6 +136,7 @@ class AnalyticsState(rx.State):
     error_text: str = ""
     empty: bool = False
     unavailable: bool = False  # true when Postgres backend isn't wired up
+    unauthenticated: bool = False  # true when no identity is active
 
     # Headline KPIs
     month_spent: float = 0.0
@@ -151,6 +157,14 @@ class AnalyticsState(rx.State):
 
     month_label: str = ""
     last_refreshed: str = ""
+    refresh_status: str = ""
+    refresh_generation: int = 0
+    timezone_name: str = ""
+
+    # Internal guard: prevents overlapping refreshes from stacking DB
+    # duplicate on_load fires from re-mounts) from stacking DB round
+    # trips and racing each other's state writes.
+    _refresh_in_flight: bool = False
 
     @rx.var
     def has_trend_data(self) -> bool:
@@ -169,24 +183,38 @@ class AnalyticsState(rx.State):
         return len(self.recent_transactions) > 0
 
     async def _resolve_user(self) -> str:
+        """Return the signed-in user id or an empty string. No anonymous
+        fallback — analytics renders a sign-in prompt when this is empty
+        rather than aggregating a shared account."""
         try:
             from purch.states.auth_state import AuthState
 
             auth = await self.get_state(AuthState)
-            return auth.user_email or ANON_USER
+            return auth.user_email or ""
         except Exception as e:
             logging.exception(f"analytics user lookup failed: {e}")
-            return ANON_USER
+            return ""
 
     # ------------------------------------------------------------------ #
     # Event handlers
     # ------------------------------------------------------------------ #
 
     @rx.event
+    def set_timezone(self, timezone_name: str):
+        self.timezone_name = timezone_name.strip()
+
+    @rx.event
     async def on_load(self):
-        """Page-load entry point. Bootstraps DB, kicks off refresh,
-        and forwards a sidebar refresh so budget widgets stay in
-        sync with whatever analytics just displayed."""
+        """Page-load entry point. Bootstraps DB and kicks off a single
+        refresh. Deliberately does NOT chain a sidebar refresh — the
+        sidebar component owns its own `on_mount` refresh, and chaining
+        one here would double every page load.
+
+        Also guards against re-entry: if a refresh is already flying
+        (e.g. rx re-mounted the container), we skip so both fires don't
+        race each other's state writes."""
+        if self.is_loading or self._refresh_in_flight:
+            return
         try:
             backend.bootstrap()
         except Exception as e:
@@ -195,10 +223,27 @@ class AnalyticsState(rx.State):
 
     @rx.event
     async def refresh(self):
-        """Manual + automatic refresh handler. Runs every aggregate
-        query, then triggers the sidebar refresh so both surfaces
-        agree on today's totals."""
+        """Manual + automatic refresh handler.
+
+        Design notes for websocket stability:
+          * Cached values (KPIs, categories, trend, budgets, recent) are
+            NOT cleared before the query — the UI keeps showing the last
+            good dashboard while the refresh spinner runs, so a slow or
+            failing round-trip never blanks the page.
+          * Re-entry is guarded: if a refresh is already in flight we
+            drop this one silently.
+          * The whole DB block is wrapped so any timeout / connection
+            error resolves to a friendly banner AND `is_loading` is
+            always released in `finally` — the loading state can never
+            stick even if Postgres hangs mid-query.
+        """
+        if self._refresh_in_flight:
+            return
+        self._refresh_in_flight = True
+        self.refresh_generation += 1
+        request_generation = self.refresh_generation
         self.is_loading = True
+        self.refresh_status = "Refreshing…"
         self.error_text = ""
         yield
 
@@ -207,14 +252,36 @@ class AnalyticsState(rx.State):
             self.unavailable = True
             self.is_loading = False
             self.has_loaded = True
+            self._refresh_in_flight = False
             return
 
         self.unavailable = False
         user_id = await self._resolve_user()
 
+        if not user_id:
+            self.unauthenticated = True
+            self.is_loading = False
+            self.has_loaded = True
+            self.empty = False
+            self.category_rows = []
+            self.trend_points = []
+            self.budget_status = []
+            self.recent_transactions = []
+            self.month_spent = 0.0
+            self.month_tx_count = 0
+            self.top_category = "—"
+            self.top_category_amount = 0.0
+            self.budget_used_pct = 0
+            self.budget_limit_total = 0.0
+            self.budget_spent_total = 0.0
+            self.budget_remaining_total = 0.0
+            self.trend_peak = 0.0
+            self._refresh_in_flight = False
+            return
+
+        self.unauthenticated = False
         try:
-            backend.ensure_user(user_id)
-            today = date.today()
+            today = today_in_timezone(self.timezone_name)
             month_start = today.replace(day=1)
             trend_start = today - timedelta(days=_TREND_DAYS - 1)
 
@@ -386,16 +453,16 @@ class AnalyticsState(rx.State):
                         item=str(r[0]),
                         amount=_to_float(r[1]),
                         category=str(r[2]),
-                        tx_timestamp=_format_ts(r[3]),
+                        tx_timestamp=format_stored_timestamp(
+                            r[3], self.timezone_name
+                        ),
                     )
                 )
             self.recent_transactions = recents
 
             # ---- Meta -----------------------------------------------
-            self.month_label = today.strftime("%B %Y")
-            self.last_refreshed = (
-                datetime.now().strftime("%I:%M %p").lstrip("0")
-            )
+            self.month_label = month_label(today, self.timezone_name)
+            self.last_refreshed = now_display(self.timezone_name)
             self.empty = (
                 self.month_tx_count == 0
                 and not self.budget_status
@@ -404,16 +471,30 @@ class AnalyticsState(rx.State):
             self.has_loaded = True
         except Exception as e:
             logging.exception(f"analytics refresh failed: {e}")
-            self.error_text = (
-                "Couldn't load analytics right now. Please try again."
-            )
+            # Timeout / connection errors get a slightly more specific
+            # message so users know it wasn't their input. Cached data
+            # stays on screen — we only surface a banner.
+            msg = str(e).lower()
+            if "timeout" in msg or "timed out" in msg:
+                self.error_text = (
+                    "Analytics took too long to load. Showing the last "
+                    "snapshot — try Refresh in a moment."
+                )
+            elif "connection" in msg or "operationalerror" in msg:
+                self.error_text = (
+                    "Couldn't reach the database just now. Showing the "
+                    "last snapshot — try Refresh in a moment."
+                )
+            else:
+                self.error_text = (
+                    "Couldn't load analytics right now. Please try again."
+                )
         finally:
+            # Always release the loading state so a failed client refresh
+            # cannot leave its own websocket waiting indefinitely.
             self.is_loading = False
-
-        # Keep the sidebar in sync with whatever we just showed.
-        try:
-            from purch.states.sidebar_state import SidebarState
-
-            yield SidebarState.refresh
-        except Exception as e:
-            logging.exception(f"sidebar refresh chain failed: {e}")
+            self._refresh_in_flight = False
+            if self.error_text:
+                self.refresh_status = "Showing the last saved snapshot"
+            else:
+                self.refresh_status = ""

@@ -3,6 +3,7 @@
 import reflex as rx
 
 from purch.components.brand import brand
+from purch.states.auth_state import AuthState
 from purch.states.nav_state import NavState
 from purch.theme import ROUTES
 
@@ -38,7 +39,39 @@ def header() -> rx.Component:
             rx.el.nav(
                 _nav_link("Chat", ROUTES["chat"]),
                 _nav_link("Analytics", ROUTES["analytics"]),
-                _nav_link("Sign in", ROUTES["index"]),
+                rx.cond(
+                    AuthState.is_authenticated,
+                    rx.el.div(
+                        rx.el.div(
+                            AuthState.display_name,
+                            class_name=(
+                                "text-sm font-semibold text-[color:var(--purch-ink)] "
+                                "max-w-[10rem] truncate"
+                            ),
+                        ),
+                        rx.el.span(
+                            rx.match(
+                                AuthState.auth_method,
+                                ("guest", "Guest"),
+                                ("google", "Google"),
+                                ("email", "Email"),
+                                "Signed in",
+                            ),
+                            class_name=(
+                                "font-['DM_Mono'] text-[0.55rem] uppercase "
+                                "tracking-[0.1em] text-[color:var(--purch-gold)] "
+                                "bg-[color:var(--purch-dark)] rounded-md "
+                                "px-1.5 py-0.5 ml-2"
+                            ),
+                        ),
+                        class_name=(
+                            "flex items-center px-2 py-1 rounded-md "
+                            "bg-[color:var(--purch-parchment)] "
+                            "border border-[color:var(--purch-border)] ml-1"
+                        ),
+                    ),
+                    _nav_link("Sign in", ROUTES["login"]),
+                ),
                 class_name="flex items-center gap-1",
             ),
             class_name=(

@@ -5,12 +5,14 @@ Refreshes whenever the sidebar is opened or after a chat turn writes a
 new transaction / budget.
 """
 
+import asyncio
 import logging
 from typing import TypedDict
 
 import reflex as rx
 
 from purch import backend
+from purch.time_utils import month_label, today_in_timezone
 
 
 class BudgetRow(TypedDict):
@@ -19,9 +21,6 @@ class BudgetRow(TypedDict):
     spent: float
     pct: int
     over: bool
-
-
-ANON_USER = "anonymous@purch.local"
 
 
 class SidebarState(rx.State):
@@ -34,29 +33,64 @@ class SidebarState(rx.State):
     categories: list[str] = list(backend.CATEGORIES)
     display_name: str = "Guest"
     is_loaded: bool = False
+    refresh_status: str = ""
+    refresh_generation: int = 0
+    timezone_name: str = ""
+    month_display: str = ""
+
+    # Internal guard: keeps overlapping refreshes (mount + toggle +
+    # chat-turn chain firing at once) from stacking DB round trips.
+    _refresh_in_flight: bool = False
 
     @rx.var
     def has_any_budget(self) -> bool:
         return self.total_limit > 0
 
     async def _current_user(self) -> str:
+        """Return the signed-in user's id or an empty string. There is
+        no anonymous fallback — the sidebar renders a sign-in prompt
+        when this is empty instead of reading a shared account."""
         try:
             from purch.states.auth_state import AuthState
 
             auth = await self.get_state(AuthState)
-            return auth.user_email or ANON_USER
+            return auth.user_email or ""
         except Exception as e:
             logging.exception(f"Sidebar user lookup failed: {e}")
-            return ANON_USER
+            return ""
+
+    def _reset_data(self) -> None:
+        self.budget_rows = []
+        self.total_spent = 0.0
+        self.total_limit = 0.0
+        self.total_pct = 0
+        self.current_tone = "nonchalant"
+        self.display_name = "Guest"
 
     @rx.event
+    def set_timezone(self, timezone_name: str):
+        self.timezone_name = timezone_name.strip()
+
+    @rx.event(background=True)
     async def refresh(self):
+        # The guard and generation belong to this browser's state only.
         user_id = await self._current_user()
+        async with self:
+            if self._refresh_in_flight:
+                return
+            self._refresh_in_flight = True
+            self.refresh_generation += 1
+            request_generation = self.refresh_generation
+            self.refresh_status = "Refreshing…"
+        if not user_id:
+            async with self:
+                self._reset_data()
+                self.is_loaded = True
+                self.refresh_status = ""
+                self._refresh_in_flight = False
+            return
         try:
-            backend.ensure_user(user_id)
-            data = backend.get_all_budgets_and_spending(
-                user_id, self.categories
-            )
+            data, tone = await asyncio.to_thread(self._read_snapshot, user_id)
             rows: list[BudgetRow] = []
             total_spent = 0.0
             total_limit = 0.0
@@ -78,36 +112,58 @@ class SidebarState(rx.State):
                 )
                 total_spent += spent
                 total_limit += limit
-            self.budget_rows = rows
-            self.total_spent = total_spent
-            self.total_limit = total_limit
-            self.total_pct = (
-                int(min(round((total_spent / total_limit) * 100), 100))
-                if total_limit
-                else 0
-            )
-            self.current_tone = backend.get_user_tone(user_id)
-            try:
-                from purch.states.auth_state import AuthState
 
+            from purch.states.auth_state import AuthState
+
+            async with self:
+                if request_generation != self.refresh_generation:
+                    return
                 auth = await self.get_state(AuthState)
-                self.display_name = auth.user_name or (
-                    auth.user_email.split("@")[0]
-                    if auth.user_email
-                    else "Guest"
+                self.budget_rows = rows
+                self.total_spent = total_spent
+                self.total_limit = total_limit
+                self.total_pct = (
+                    int(min(round((total_spent / total_limit) * 100), 100))
+                    if total_limit
+                    else 0
                 )
-            except Exception:
-                logging.exception("Unexpected error")
-                self.display_name = "Guest"
-            self.is_loaded = True
+                self.current_tone = tone
+                self.display_name = auth.display_name
+                self.month_display = month_label(
+                    today_in_timezone(self.timezone_name), self.timezone_name
+                )
+                self.is_loaded = True
+                self.refresh_status = ""
         except Exception as e:
             logging.exception(f"Sidebar refresh failed: {e}")
+            async with self:
+                self.refresh_status = "Showing the last saved snapshot"
+        finally:
+            async with self:
+                self._refresh_in_flight = False
+
+    def _read_snapshot(
+        self, user_id: str
+    ) -> tuple[dict[str, dict[str, float | None]], str]:
+        try:
+            data = backend.get_all_budgets_and_spending(
+                user_id, self.categories
+            )
+            tone = backend.get_user_tone(user_id)
+            return data, tone
+        except Exception as e:
+            logging.exception(f"Sidebar snapshot read failed: {e}")
+            raise
 
     @rx.event
     async def set_tone(self, tone: str):
         if tone not in self.tone_options:
             return
         user_id = await self._current_user()
+        if not user_id:
+            return rx.toast.error(
+                "Sign in first to save a tone preference.", duration=3000
+            )
         try:
             backend.ensure_user(user_id)
             backend.set_user_tone(user_id, tone)

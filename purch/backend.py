@@ -12,6 +12,7 @@ keeps working unchanged.
 import logging
 
 from purch.groq_helper import install_safe_groq_calls
+from purch.time_utils import format_stored_timestamp
 
 install_safe_groq_calls()
 
@@ -151,6 +152,11 @@ def is_postgres() -> bool:
 
 def is_available() -> bool:
     return _BACKEND_AVAILABLE
+
+
+def format_transaction_timestamp(value: object, timezone_name: str = "") -> str:
+    """Format a stored transaction timestamp without changing its value."""
+    return format_stored_timestamp(value, timezone_name)
 
 
 def classify_alert(text: str) -> str:

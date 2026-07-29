@@ -4,8 +4,9 @@ import reflex as rx
 
 from purch.components.chat_bubble import chat_bubble, typing_indicator
 from purch.components.layout import page_shell
+from purch.states.auth_state import AuthState
 from purch.states.chat_state import PROMPT_CHIPS, ChatState
-from purch.theme import CLASSES
+from purch.theme import CLASSES, ROUTES
 
 
 def _prompt_chip(prompt: str) -> rx.Component:
@@ -182,20 +183,78 @@ def _header_row() -> rx.Component:
     )
 
 
+def _unauthenticated_prompt() -> rx.Component:
+    """Rendered when no AuthState identity is active. Preserves the
+    espresso/parchment card look and offers both the sign-in and
+    continue-as-guest paths, matching the login screen's CTAs."""
+    return rx.el.div(
+        rx.el.div(
+            "P",
+            class_name=(
+                "w-16 h-16 rounded-2xl bg-[color:var(--purch-dark)] "
+                "text-[color:var(--purch-gold)] font-['Playfair_Display'] font-bold "
+                "text-3xl flex items-center justify-center"
+            ),
+        ),
+        rx.el.h3(
+            "Sign in to start chatting.",
+            class_name=f"{CLASSES['display_heading']} text-2xl mt-4",
+        ),
+        rx.el.p(
+            "Purch keeps every purchase, budget, and tone tied to your account. "
+            "Sign in with Google or email — or continue as a guest to preview "
+            "the experience privately on this device.",
+            class_name=(
+                "text-base text-[color:var(--purch-muted)] mt-3 max-w-md "
+                "text-center leading-relaxed"
+            ),
+        ),
+        rx.el.div(
+            rx.el.a(
+                "Sign in",
+                href=ROUTES["login"],
+                class_name=CLASSES["primary_button"],
+            ),
+            rx.el.button(
+                "Continue as guest",
+                on_click=AuthState.sign_in_as_guest,
+                type="button",
+                class_name=CLASSES["outline_button"],
+            ),
+            class_name="flex flex-wrap items-center justify-center gap-3 mt-6",
+        ),
+        class_name="flex flex-col items-center justify-center py-12 sm:py-16",
+    )
+
+
+def _authenticated_body() -> rx.Component:
+    return rx.el.div(
+        _header_row(),
+        _error_banner(),
+        rx.cond(ChatState.has_messages, _message_list(), _empty_state()),
+        _composer(),
+    )
+
+
 def chat_page() -> rx.Component:
     return page_shell(
         rx.el.div(
             rx.el.div(
-                _header_row(),
-                _error_banner(),
                 rx.cond(
-                    ChatState.has_messages, _message_list(), _empty_state()
+                    AuthState.is_authenticated,
+                    _authenticated_body(),
+                    _unauthenticated_prompt(),
                 ),
-                _composer(),
                 class_name=f"{CLASSES['card']} p-7 sm:p-9",
             ),
             class_name="max-w-3xl mx-auto w-full",
-            on_mount=ChatState.on_load,
+            on_mount=[
+                ChatState.on_load,
+                rx.call_script(
+                    "Intl.DateTimeFormat().resolvedOptions().timeZone",
+                    callback=ChatState.set_timezone,
+                ),
+            ],
         ),
         with_sidebar=True,
     )

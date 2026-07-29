@@ -8,3 +8,4 @@ python-dateutil
 supabase
 psycopg[binary]>=3.1.8
 geoalchemy2>=0.18
+reflex[db]

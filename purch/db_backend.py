@@ -63,11 +63,24 @@ def get_engine() -> Engine:
         raise RuntimeError(
             "Postgres engine requested but neither REFLEX_DB_URL nor DB_URL is set."
         )
+    # Short connect + statement timeouts are the single most important knob
+    # for websocket stability on Reflex: a slow/hung DB call otherwise holds
+    # the state lock past the websocket ping window and kills the session.
+    # 5s connect / 8s statement means every read either returns fast, or
+    # raises quickly enough that we can render a safe error and unwind
+    # `is_loading` before the frontend gives up.
     _engine = create_engine(
         _normalize_url(_PG_URL_RAW),
         pool_pre_ping=True,
-        pool_recycle=300,
+        pool_recycle=180,
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=6,
         future=True,
+        connect_args={
+            "connect_timeout": 5,
+            "options": "-c statement_timeout=8000 -c idle_in_transaction_session_timeout=8000",
+        },
     )
     return _engine
 

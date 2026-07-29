@@ -7,15 +7,17 @@ toggle flips that flag and this component slides in/out accordingly.
 
 import reflex as rx
 
+from purch.states.auth_state import AuthState
 from purch.states.nav_state import NavState
 from purch.states.sidebar_state import BudgetRow, SidebarState
-from purch.theme import ROUTES
+from purch.theme import CLASSES, ROUTES
 
 
 def _total_budget_card() -> rx.Component:
     return rx.el.div(
         rx.el.div(
-            "This Month — Total",
+            SidebarState.month_display,
+            " — Total",
             class_name=(
                 "font-['DM_Mono'] text-[0.6rem] uppercase tracking-[0.08em] "
                 "text-[color:var(--purch-parchment)]/70 mb-1"
@@ -43,7 +45,7 @@ def _total_budget_card() -> rx.Component:
                     "width": rx.cond(
                         SidebarState.total_pct > 100,
                         "100%",
-                        f"{SidebarState.total_pct}%",
+                        SidebarState.total_pct.to_string() + "%",
                     )
                 },
             ),
@@ -110,7 +112,7 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                         "width": rx.cond(
                             row["pct"] > 100,
                             "100%",
-                            f"{row['pct']}%",
+                            row["pct"].to_string() + "%",
                         )
                     },
                 ),
@@ -144,6 +146,14 @@ def _budgets_section() -> rx.Component:
                 "font-['DM_Mono'] text-[0.6rem] uppercase tracking-[0.08em] "
                 "text-[color:var(--purch-muted)] mb-2"
             ),
+        ),
+        rx.cond(
+            SidebarState.refresh_status != "",
+            rx.el.p(
+                SidebarState.refresh_status,
+                class_name="text-[0.65rem] text-[color:var(--purch-muted)] italic mb-2",
+            ),
+            rx.fragment(),
         ),
         rx.cond(
             SidebarState.has_any_budget,
@@ -221,30 +231,83 @@ def _profile_section() -> rx.Component:
             ),
             rx.el.div(
                 rx.el.p(
-                    SidebarState.display_name,
+                    AuthState.display_name,
                     class_name="text-xs font-bold text-[color:var(--purch-ink)] truncate m-0",
                 ),
                 rx.el.p(
-                    "Session active",
+                    rx.match(
+                        AuthState.auth_method,
+                        ("google", "Signed in with Google"),
+                        ("email", AuthState.user_email),
+                        ("guest", "Guest session"),
+                        "Session active",
+                    ),
                     class_name=(
                         "font-['DM_Mono'] text-[0.55rem] uppercase tracking-[0.06em] "
-                        "text-[color:var(--purch-muted)] m-0"
+                        "text-[color:var(--purch-muted)] m-0 truncate"
                     ),
                 ),
                 class_name="flex-1 min-w-0",
             ),
             class_name="flex items-center gap-2.5",
         ),
-        rx.el.a(
-            "Sign in",
-            href=ROUTES["login"],
+        rx.el.button(
+            "Sign out",
+            on_click=AuthState.sign_out,
+            type="button",
             class_name=(
-                "block mt-3 text-center text-xs font-semibold "
+                "block w-full mt-3 text-center text-xs font-semibold "
                 "text-[color:var(--purch-coral)] hover:text-[color:var(--purch-coral-light)] "
                 "transition-colors"
             ),
         ),
         class_name="pt-4 border-t border-[color:var(--purch-border)]",
+    )
+
+
+def _unauthenticated_panel() -> rx.Component:
+    """Rendered inside the sidebar when no identity is active. Shows
+    the sign-in / guest CTAs instead of the anonymous budgets and tone
+    picker."""
+    return rx.el.div(
+        rx.el.div(
+            "P",
+            class_name=(
+                "w-12 h-12 rounded-2xl bg-[color:var(--purch-dark)] "
+                "text-[color:var(--purch-gold)] font-['Playfair_Display'] font-bold "
+                "text-2xl flex items-center justify-center mx-auto"
+            ),
+        ),
+        rx.el.h3(
+            "You're not signed in.",
+            class_name=(
+                "font-['Playfair_Display'] font-bold text-base "
+                "text-[color:var(--purch-ink)] mt-3 text-center"
+            ),
+        ),
+        rx.el.p(
+            "Budgets and tone are tied to your account. "
+            "Sign in or continue as a guest to get started.",
+            class_name=(
+                "text-xs text-[color:var(--purch-muted)] mt-1.5 "
+                "leading-relaxed text-center"
+            ),
+        ),
+        rx.el.a(
+            "Sign in",
+            href=ROUTES["login"],
+            class_name=CLASSES["primary_button"] + " w-full mt-4 text-sm",
+        ),
+        rx.el.button(
+            "Continue as guest",
+            on_click=AuthState.sign_in_as_guest,
+            type="button",
+            class_name=CLASSES["outline_button"] + " w-full mt-2 text-sm",
+        ),
+        class_name=(
+            "rounded-xl border border-dashed border-[color:var(--purch-border)] "
+            "bg-[color:var(--purch-paper)] p-4"
+        ),
     )
 
 
@@ -262,10 +325,16 @@ def sidebar() -> rx.Component:
             ),
             rx.el.aside(
                 rx.el.div(
-                    _total_budget_card(),
-                    _budgets_section(),
-                    _tone_section(),
-                    _profile_section(),
+                    rx.cond(
+                        AuthState.is_authenticated,
+                        rx.el.div(
+                            _total_budget_card(),
+                            _budgets_section(),
+                            _tone_section(),
+                            _profile_section(),
+                        ),
+                        _unauthenticated_panel(),
+                    ),
                     class_name="p-4 h-full overflow-y-auto",
                 ),
                 class_name=(
@@ -274,7 +343,13 @@ def sidebar() -> rx.Component:
                     "border-r border-[color:var(--purch-border)] "
                     "shadow-lg lg:shadow-none purch-fade-in"
                 ),
-                on_mount=SidebarState.refresh,
+                on_mount=[
+                    SidebarState.refresh,
+                    rx.call_script(
+                        "Intl.DateTimeFormat().resolvedOptions().timeZone",
+                        callback=SidebarState.set_timezone,
+                    ),
+                ],
             ),
             class_name="",
         ),

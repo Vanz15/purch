@@ -203,7 +203,7 @@ def _category_row(row: CategoryRow) -> rx.Component:
                     "width": rx.cond(
                         row["pct_of_total"] > 100,
                         "100%",
-                        f"{row['pct_of_total']}%",
+                        row["pct_of_total"].to_string() + "%",
                     )
                 },
             ),
@@ -270,7 +270,7 @@ def _trend_bar(point: TrendPoint, index: rx.Var) -> rx.Component:
             style={
                 "height": rx.cond(
                     point["total"] > 0,
-                    f"calc({ratio}% + 4px)",
+                    "calc(" + ratio.to_string() + "% + 4px)",
                     "3px",
                 )
             },
@@ -424,7 +424,7 @@ def _budget_card(row: BudgetStatusRow) -> rx.Component:
                     "width": rx.cond(
                         row["pct"] > 100,
                         "100%",
-                        f"{row['pct']}%",
+                        row["pct"].to_string() + "%",
                     )
                 },
             ),
@@ -652,6 +652,58 @@ def error_banner() -> rx.Component:
             ),
         ),
         rx.fragment(),
+    )
+
+
+def unauthenticated_banner() -> rx.Component:
+    """Rendered on analytics when no identity is active. Sign-in and
+    guest CTAs preserve the same coral-primary / outline pattern used
+    on the login page so the visual language stays consistent."""
+    from purch.states.auth_state import AuthState
+
+    return rx.el.div(
+        rx.el.div(
+            "P",
+            class_name=(
+                "w-16 h-16 rounded-2xl bg-[color:var(--purch-dark)] "
+                "text-[color:var(--purch-gold)] font-['Playfair_Display'] font-bold "
+                "text-3xl flex items-center justify-center"
+            ),
+        ),
+        rx.el.h3(
+            "Sign in to see your analytics.",
+            class_name=(
+                "font-['Playfair_Display'] font-bold text-2xl mt-4 "
+                "text-[color:var(--purch-ink)]"
+            ),
+        ),
+        rx.el.p(
+            "Your spending trend, category breakdown, and budget status "
+            "stay tied to your account. Sign in with Google or email — or "
+            "continue as a guest to preview privately on this device.",
+            class_name=(
+                "text-base text-[color:var(--purch-muted)] mt-3 max-w-md "
+                "text-center leading-relaxed"
+            ),
+        ),
+        rx.el.div(
+            rx.el.a(
+                "Sign in",
+                href="/login",
+                class_name=CLASSES["primary_button"],
+            ),
+            rx.el.button(
+                "Continue as guest",
+                on_click=AuthState.sign_in_as_guest,
+                type="button",
+                class_name=CLASSES["outline_button"],
+            ),
+            class_name="flex flex-wrap items-center justify-center gap-3 mt-6",
+        ),
+        class_name=(
+            f"{CLASSES['card']} p-12 flex flex-col items-center "
+            "justify-center text-center"
+        ),
     )
 
 

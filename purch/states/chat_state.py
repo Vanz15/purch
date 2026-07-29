@@ -16,6 +16,7 @@ re-exports the root `agent/`, `llm/`, `db/` packages under a normalized
 namespace so nothing in the Streamlit fallback has to change.
 """
 
+import asyncio
 import logging
 import os
 import time
@@ -26,7 +27,8 @@ import reflex as rx
 
 from purch import backend
 from purch.errors import safe_banner_message, safe_error_message
-from purch.states.sidebar_state import ANON_USER, SidebarState
+from purch.states.sidebar_state import SidebarState
+from purch.time_utils import now_display
 
 
 class ChatMessage(TypedDict):
@@ -45,8 +47,8 @@ PROMPT_CHIPS: list[str] = [
 ]
 
 
-def _now_str() -> str:
-    return datetime.now().strftime("%I:%M %p").lstrip("0")
+def _now_str(timezone_name: str = "") -> str:
+    return now_display(timezone_name)
 
 
 class ChatState(rx.State):
@@ -67,6 +69,7 @@ class ChatState(rx.State):
     # Simple rolling rate limit — same intent as the Streamlit version.
     _req_count: int = 0
     _req_window_start: float = 0.0
+    timezone_name: str = ""
 
     @rx.var
     def has_messages(self) -> bool:
@@ -78,28 +81,32 @@ class ChatState(rx.State):
 
     @rx.event
     async def on_load(self):
-        """Best-effort DB bootstrap on mount. send_message is also
-        self-sufficient — it will bootstrap+ensure_user on demand — so
-        the chat still works if this handler never fires."""
+        """Best-effort DB bootstrap on mount for authenticated users. When
+        no identity is active this is a no-op — the page renders a
+        sign-in prompt instead of the composer, so there's nothing to
+        bootstrap for."""
         try:
-            backend.bootstrap()
             user_id = await self._user_id()
+            if not user_id:
+                return
+            backend.bootstrap()
             backend.ensure_user(user_id)
         except Exception as e:
             logging.exception(f"Chat on_load failed: {e}")
 
     async def _user_id(self) -> str:
-        """Resolve the current user id defensively — fall back to the
-        anonymous account rather than propagating errors when the auth
-        state isn't reachable (e.g. tests / non-request contexts)."""
+        """Resolve the current user id from AuthState. Returns an empty
+        string when no account is active — there is no shared anonymous
+        fallback: callers must gate all reads/writes on this being
+        non-empty."""
         try:
             from purch.states.auth_state import AuthState
 
             auth = await self.get_state(AuthState)
-            return auth.user_email or ANON_USER
+            return auth.user_email or ""
         except Exception as e:
             logging.exception(f"user_id resolution failed: {e}")
-            return ANON_USER
+            return ""
 
     def _ensure_ready(self, user_id: str) -> bool:
         """Prepare the backend without allowing setup errors to escape the event."""
@@ -121,6 +128,10 @@ class ChatState(rx.State):
                 alert=backend.classify_alert(text),
             )
         )
+
+    @rx.event
+    def set_timezone(self, timezone_name: str):
+        self.timezone_name = timezone_name.strip()
 
     @rx.event
     def dismiss_error(self):
@@ -230,8 +241,17 @@ class ChatState(rx.State):
         if self.is_sending:
             return
 
-        now = _now_str()
+        now = _now_str(self.timezone_name)
         user_id = await self._user_id()
+
+        # Identity gate — no anonymous writes. If the user isn't signed
+        # in we surface an inline prompt and short-circuit before we
+        # touch the agent, the LLM, or the database.
+        if not user_id:
+            self.error_text = (
+                "Sign in or continue as a guest to start logging purchases."
+            )
+            return
 
         self.messages.append(
             ChatMessage(
@@ -284,7 +304,9 @@ class ChatState(rx.State):
                         response_text, meta, fatal_error = edit_reply
                     else:
                         # Full agent round-trip.
-                        result = backend.run_agent(user_id, prompt)
+                        result = await asyncio.to_thread(
+                            backend.run_agent, user_id, prompt
+                        )
                         response_text = result.get("response") or ""
                         if result.get("pending_conversion"):
                             pc = result["pending_conversion"]
