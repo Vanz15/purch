@@ -3,7 +3,8 @@
 The normalized ``purch`` package owns the sole Reflex App instance and all
 page registrations. This module is the only supported Reflex entry point;
 legacy application modules are intentionally not imported here. The legacy
-``app`` package is not part of Reflex discovery.
+``app`` package is not part of Reflex discovery. Configure Reflex to launch
+``purch.purch:app`` so this is the only module that defines ``rx.App``.
 
 Reflex must be started with ``purch.purch:app``. This module is the sole
 application entry point and the only module in the normalized package that
@@ -14,11 +15,10 @@ creates an ``rx.App``.
 # another App instance in a page, component, or compatibility package. Legacy
 # application modules are not part of the normalized Purch entry point.
 
-import reflex as rx
-
 # The normalized package is the only supported Reflex application module.
-# Keep this module as the sole Reflex entry point for app discovery.
+# Keep the application instance in this module so Reflex has one canonical entry point.
 # Legacy app modules must not instantiate rx.App; this module owns discovery.
+import reflex as rx
 from purch.pages.analytics import analytics_page
 from purch.pages.chat import chat_page
 from purch.pages.index import index_page

@@ -46,10 +46,8 @@ class SidebarState(rx.State):
     def has_any_budget(self) -> bool:
         return self.total_limit > 0
 
-    async def _current_user(self) -> str:
-        """Return the signed-in user's id or an empty string. There is
-        no anonymous fallback — the sidebar renders a sign-in prompt
-        when this is empty instead of reading a shared account."""
+    async def _current_user_for_event(self) -> str:
+        """Return the active identity for a regular event handler."""
         try:
             from purch.states.auth_state import AuthState
 
@@ -73,8 +71,8 @@ class SidebarState(rx.State):
 
     @rx.event(background=True)
     async def refresh(self):
-        # The guard and generation belong to this browser's state only.
-        user_id = await self._current_user()
+        # Read the latest auth snapshot while holding this state's lock. The
+        # lock is released before any database work begins.
         async with self:
             if self._refresh_in_flight:
                 return
@@ -82,6 +80,14 @@ class SidebarState(rx.State):
             self.refresh_generation += 1
             request_generation = self.refresh_generation
             self.refresh_status = "Refreshing…"
+            categories = list(self.categories)
+            timezone_name = self.timezone_name
+            from purch.states.auth_state import AuthState
+
+            auth = await self.get_state(AuthState)
+            user_id = auth.user_email or ""
+            display_name = auth.display_name
+
         if not user_id:
             async with self:
                 self._reset_data()
@@ -90,11 +96,13 @@ class SidebarState(rx.State):
                 self._refresh_in_flight = False
             return
         try:
-            data, tone = await asyncio.to_thread(self._read_snapshot, user_id)
+            data, tone = await asyncio.to_thread(
+                self._read_snapshot, user_id, categories
+            )
             rows: list[BudgetRow] = []
             total_spent = 0.0
             total_limit = 0.0
-            for cat in self.categories:
+            for cat in categories:
                 d = data.get(cat, {"limit": None, "spent": 0.0})
                 limit = float(d["limit"]) if d["limit"] else 0.0
                 spent = float(d["spent"] or 0.0)
@@ -113,12 +121,9 @@ class SidebarState(rx.State):
                 total_spent += spent
                 total_limit += limit
 
-            from purch.states.auth_state import AuthState
-
             async with self:
                 if request_generation != self.refresh_generation:
                     return
-                auth = await self.get_state(AuthState)
                 self.budget_rows = rows
                 self.total_spent = total_spent
                 self.total_limit = total_limit
@@ -128,9 +133,9 @@ class SidebarState(rx.State):
                     else 0
                 )
                 self.current_tone = tone
-                self.display_name = auth.display_name
+                self.display_name = display_name
                 self.month_display = month_label(
-                    today_in_timezone(self.timezone_name), self.timezone_name
+                    today_in_timezone(timezone_name), timezone_name
                 )
                 self.is_loaded = True
                 self.refresh_status = ""
@@ -143,12 +148,10 @@ class SidebarState(rx.State):
                 self._refresh_in_flight = False
 
     def _read_snapshot(
-        self, user_id: str
+        self, user_id: str, categories: list[str]
     ) -> tuple[dict[str, dict[str, float | None]], str]:
         try:
-            data = backend.get_all_budgets_and_spending(
-                user_id, self.categories
-            )
+            data = backend.get_all_budgets_and_spending(user_id, categories)
             tone = backend.get_user_tone(user_id)
             return data, tone
         except Exception as e:
@@ -159,7 +162,7 @@ class SidebarState(rx.State):
     async def set_tone(self, tone: str):
         if tone not in self.tone_options:
             return
-        user_id = await self._current_user()
+        user_id = await self._current_user_for_event()
         if not user_id:
             return rx.toast.error(
                 "Sign in first to save a tone preference.", duration=3000
