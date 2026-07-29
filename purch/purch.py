@@ -8,12 +8,15 @@ legacy application modules are intentionally not imported here. The legacy
 
 Reflex must be started with ``purch.purch:app``. This module is the sole
 application entry point and the only module in the normalized package that
-creates an ``rx.App``.
+creates ``rx.App``; legacy app modules must not be imported by discovery.
+The ``app`` and ``app.app`` compatibility trees are not part of this entry
+point and must not be imported during Reflex discovery.
 """
 
 # Reflex discovery is intentionally anchored to this module; do not create
 # another App instance in a page, component, or compatibility package. Legacy
 # application modules are not part of the normalized Purch entry point.
+# The canonical application object below is the only App in the purch package.
 
 # The normalized package is the only supported Reflex application module.
 # Keep the application instance in this module so Reflex has one canonical entry point.

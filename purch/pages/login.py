@@ -28,8 +28,7 @@ from purch.theme import CLASSES, ROUTES
 
 
 def _hero_panel() -> rx.Component:
-    """Left panel — espresso dark hero. Preserves the existing marketing
-    treatment (gold wordmark, italic coral accent, tone chips)."""
+    """Left panel mirrors the public landing-page hero treatment."""
     tones = [
         "Nonchalant",
         "Bestie",
@@ -49,47 +48,49 @@ def _hero_panel() -> rx.Component:
             ),
             rx.el.div(
                 "Budget tracking, reimagined",
-                class_name=(
-                    "font-['DM_Mono'] text-[0.7rem] uppercase "
-                    "tracking-[0.12em] text-[color:var(--purch-gold)] mt-8 mb-3"
-                ),
+                class_name=CLASSES["eyebrow"],
             ),
             rx.el.h1(
-                "Sign in the way ",
+                "Your last ",
                 rx.el.em(
-                    "you talk",
+                    "eventually",
                     class_name="italic text-[color:var(--purch-coral-light)]",
                 ),
                 rx.el.br(),
-                "about your money.",
+                "leads to another.",
                 class_name=(
-                    "font-['Playfair_Display'] font-bold tracking-tight "
-                    "text-[color:var(--purch-parchment)] "
-                    "text-4xl sm:text-5xl lg:text-6xl leading-[1.02] mb-5"
+                    f"{CLASSES['display_heading']} text-5xl sm:text-6xl "
+                    "lg:text-7xl leading-[1.02] mt-3 "
+                    "text-[color:var(--purch-parchment)]"
                 ),
             ),
             rx.el.p(
-                "Purch keeps your transactions, budgets, and tone tied to "
-                "your account. Pick how you'd like to sign in — you can "
-                "always try it as a guest first.",
-                class_name=(
-                    "text-[color:var(--purch-muted)] text-base leading-relaxed "
-                    "max-w-lg"
-                ),
+                "Log expenses the way you text — casually. Purch extracts the "
+                "item, amount, and category, and reacts in the tone you pick. "
+                "No forms, no dropdowns — just chat.",
+                class_name="mt-5 max-w-xl text-[color:var(--purch-muted)] leading-relaxed",
             ),
             rx.el.div(
                 rx.foreach(
                     tones,
-                    lambda t: rx.el.span(t, class_name="purch-chip"),
+                    lambda tone: rx.el.span(tone, class_name="purch-chip"),
                 ),
                 class_name="flex flex-wrap gap-2 mt-6",
             ),
-            class_name="w-full max-w-xl px-6 sm:px-10 lg:px-16 py-14 lg:py-20",
+            rx.el.div(
+                rx.el.a(
+                    "Open the chat →",
+                    href=ROUTES["chat"],
+                    class_name=CLASSES["primary_button"],
+                ),
+                class_name="mt-8 flex flex-wrap items-center gap-3",
+            ),
+            class_name=(
+                "flex flex-col justify-center gap-5 w-full px-6 sm:px-10 "
+                "lg:px-16 py-16 lg:py-20"
+            ),
         ),
-        class_name=(
-            "bg-[color:var(--purch-dark)] flex items-center justify-center "
-            "min-h-[40vh] lg:min-h-[calc(100vh-3rem)]"
-        ),
+        class_name="bg-[color:var(--purch-dark)] flex items-center",
     )
 
 
@@ -427,7 +428,7 @@ def _sign_in_panel() -> rx.Component:
         class_name=(
             "bg-[color:var(--purch-parchment)] flex items-center justify-center "
             "px-6 sm:px-10 lg:px-16 py-14 lg:py-20 "
-            "min-h-[50vh] lg:min-h-[calc(100vh-3rem)]"
+            "min-h-[50vh] lg:min-h-screen"
         ),
     )
 
@@ -437,8 +438,9 @@ def login_page() -> rx.Component:
         rx.el.div(
             _hero_panel(),
             _sign_in_panel(),
-            class_name="grid grid-cols-1 lg:grid-cols-2 w-full",
+            class_name="grid grid-cols-1 lg:grid-cols-2 w-full min-h-screen",
             on_mount=AuthState.handle_oauth_callback,
         ),
         wide=True,
+        show_header=False,
     )

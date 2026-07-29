@@ -134,11 +134,11 @@ def _showcase() -> rx.Component:
                     class_name=f"{CLASSES['display_heading']} text-2xl",
                 ),
                 rx.el.p(
-                    "Sign in with Google to start tracking the way you actually talk.",
+                    "Whether it's your first expense or your thousandth, Purch is ready when you are.",
                     class_name="text-sm text-[color:var(--purch-secondary-text)] mt-1",
                 ),
                 rx.el.a(
-                    "Continue with Google",
+                    "Start tracking",
                     href=ROUTES["login"],
                     class_name=f"{CLASSES['primary_button']} mt-4 w-full",
                 ),

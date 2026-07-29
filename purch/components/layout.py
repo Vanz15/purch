@@ -20,6 +20,7 @@ def page_shell(
     *content: rx.Component,
     wide: bool = False,
     with_sidebar: bool = False,
+    show_header: bool = True,
 ) -> rx.Component:
     """Standard page wrapper.
 
@@ -29,18 +30,30 @@ def page_shell(
             when open. Used by chat/analytics.
     """
     return rx.el.div(
-        header(),
+        rx.cond(show_header, header(), rx.fragment()),
         rx.cond(with_sidebar, sidebar(), rx.fragment()),
         rx.el.main(
             rx.el.div(*content, class_name=_inner_class(wide)),
             class_name=rx.cond(
-                with_sidebar,
+                show_header,
                 rx.cond(
-                    NavState.sidebar_open,
-                    "pt-12 lg:pl-72 transition-[padding] duration-200",
-                    "pt-12 transition-[padding] duration-200",
+                    with_sidebar,
+                    rx.cond(
+                        NavState.sidebar_open,
+                        "pt-12 lg:pl-72 transition-[padding] duration-200",
+                        "pt-12 transition-[padding] duration-200",
+                    ),
+                    "pt-12",
                 ),
-                "pt-12",
+                rx.cond(
+                    with_sidebar,
+                    rx.cond(
+                        NavState.sidebar_open,
+                        "lg:pl-72 transition-[padding] duration-200",
+                        "transition-[padding] duration-200",
+                    ),
+                    "pt-0",
+                ),
             ),
         ),
         class_name=CLASSES["page"],
