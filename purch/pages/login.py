@@ -302,7 +302,7 @@ def _guest_card() -> rx.Component:
                     "text-xs text-[color:var(--purch-muted)] leading-relaxed mt-1"
                 ),
             ),
-            class_name="flex-1 min-w-0",
+            class_name="w-full min-w-0",
         ),
         rx.el.button(
             rx.cond(
@@ -315,13 +315,13 @@ def _guest_card() -> rx.Component:
             type="button",
             class_name=(
                 CLASSES["outline_button"]
-                + " text-sm shrink-0 "
+                + " text-sm shrink-0 w-full sm:w-auto "
                 + "disabled:opacity-60 disabled:cursor-not-allowed"
             ),
         ),
         class_name=(
-            "flex items-center gap-3 mt-5 p-4 rounded-xl "
-            "border border-dashed border-[color:var(--purch-border)] "
+            "flex flex-col items-stretch sm:flex-row sm:items-center gap-4 mt-5 "
+            "p-4 rounded-xl border border-dashed border-[color:var(--purch-border)] "
             "bg-[color:var(--purch-parchment)]"
         ),
     )

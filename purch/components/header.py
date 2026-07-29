@@ -65,7 +65,7 @@ def header() -> rx.Component:
                             ),
                         ),
                         class_name=(
-                            "flex items-center px-2 py-1 rounded-md "
+                            "hidden sm:flex items-center px-2 py-1 rounded-md "
                             "bg-[color:var(--purch-parchment)] "
                             "border border-[color:var(--purch-border)] ml-1"
                         ),
