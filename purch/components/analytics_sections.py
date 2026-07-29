@@ -203,7 +203,7 @@ def _category_row(row: CategoryRow) -> rx.Component:
                     "width": rx.cond(
                         row["pct_of_total"] > 100,
                         "100%",
-                        row["pct_of_total"].to_string() + "%",
+                        f"{row['pct_of_total']}%",
                     )
                 },
             ),
@@ -270,7 +270,7 @@ def _trend_bar(point: TrendPoint, index: rx.Var) -> rx.Component:
             style={
                 "height": rx.cond(
                     point["total"] > 0,
-                    "calc(" + ratio.to_string() + "% + 4px)",
+                    f"calc({ratio}% + 4px)",
                     "3px",
                 )
             },
@@ -424,7 +424,7 @@ def _budget_card(row: BudgetStatusRow) -> rx.Component:
                     "width": rx.cond(
                         row["pct"] > 100,
                         "100%",
-                        row["pct"].to_string() + "%",
+                        f"{row['pct']}%",
                     )
                 },
             ),

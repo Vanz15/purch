@@ -232,6 +232,30 @@ def _labelled_input(
     )
 
 
+def _forgot_password_link() -> rx.Component:
+    """Small inline link under the password field, sign-in mode only.
+    Kept visually restrained (muted → coral on hover) so it doesn't
+    compete with the primary Sign in CTA."""
+    return rx.cond(
+        ~AuthState.is_signup_mode,
+        rx.el.div(
+            rx.el.button(
+                "Forgot password?",
+                on_click=AuthState.open_recovery,
+                type="button",
+                disabled=AuthState.is_busy,
+                class_name=(
+                    "text-xs font-semibold text-[color:var(--purch-muted)] "
+                    "hover:text-[color:var(--purch-coral)] transition-colors "
+                    "disabled:opacity-60 disabled:cursor-not-allowed"
+                ),
+            ),
+            class_name="flex justify-end -mt-1",
+        ),
+        rx.fragment(),
+    )
+
+
 def _email_form() -> rx.Component:
     return rx.el.form(
         rx.cond(
@@ -259,6 +283,7 @@ def _email_form() -> rx.Component:
             "At least 6 characters",
             "current-password",
         ),
+        _forgot_password_link(),
         rx.el.button(
             AuthState.submit_label,
             type="submit",
@@ -282,6 +307,90 @@ def _email_form() -> rx.Component:
         on_submit=AuthState.submit_credentials,
         reset_on_submit=False,
         class_name="flex flex-col gap-3",
+    )
+
+
+def _recovery_form() -> rx.Component:
+    """Forgot-password form. Preserves the espresso/coral card language:
+    parchment card, DM Mono labels, coral primary button, muted back
+    link. The response is intentionally neutral so we don't leak
+    whether an address exists."""
+    return rx.el.form(
+        rx.el.div(
+            rx.el.h3(
+                "Reset your password",
+                class_name=(
+                    "font-['Playfair_Display'] font-bold text-lg "
+                    "text-[color:var(--purch-ink)] m-0"
+                ),
+            ),
+            rx.el.p(
+                "Enter the email you signed up with and we'll send a "
+                "recovery link. If you don't receive one shortly, check "
+                "your spam folder or try again in a few minutes.",
+                class_name=(
+                    "text-xs text-[color:var(--purch-muted)] mt-1 "
+                    "leading-relaxed m-0"
+                ),
+            ),
+            class_name="mb-1",
+        ),
+        rx.el.label(
+            rx.el.span(
+                "Email",
+                class_name=(
+                    "font-['DM_Mono'] text-[0.65rem] uppercase "
+                    "tracking-[0.1em] text-[color:var(--purch-muted)]"
+                ),
+            ),
+            rx.el.input(
+                name="recovery_email",
+                type="email",
+                placeholder="you@example.com",
+                auto_complete="email",
+                default_value=AuthState.recovery_email,
+                disabled=AuthState.is_busy,
+                class_name=(
+                    "mt-1 w-full rounded-xl border border-[color:var(--purch-border)] "
+                    "bg-[color:var(--purch-paper)] px-3.5 py-2.5 text-sm "
+                    "placeholder:text-[color:var(--purch-muted)] focus:outline-none "
+                    "focus:border-[color:var(--purch-coral)] "
+                    "disabled:opacity-60 disabled:cursor-not-allowed"
+                ),
+            ),
+            class_name="flex flex-col gap-1",
+        ),
+        rx.el.button(
+            rx.cond(
+                AuthState.is_busy,
+                "Sending\u2026",
+                "Send recovery link",
+            ),
+            type="submit",
+            disabled=AuthState.is_busy,
+            class_name=(
+                f"{CLASSES['primary_button']} w-full mt-2 "
+                "disabled:opacity-60 disabled:cursor-not-allowed"
+            ),
+        ),
+        rx.el.button(
+            "\u2190 Back to sign in",
+            on_click=AuthState.close_recovery,
+            type="button",
+            disabled=AuthState.is_busy,
+            class_name=(
+                "text-xs text-[color:var(--purch-muted)] "
+                "hover:text-[color:var(--purch-coral)] transition-colors "
+                "mt-1 self-center"
+            ),
+        ),
+        on_submit=AuthState.submit_recovery,
+        reset_on_submit=False,
+        class_name=(
+            "flex flex-col gap-3 p-4 rounded-xl "
+            "border border-[color:var(--purch-border)] "
+            "bg-[color:var(--purch-parchment)]"
+        ),
     )
 
 
@@ -402,9 +511,23 @@ def _sign_in_card() -> rx.Component:
         ),
         rx.el.div(
             _google_button(),
-            _divider("or with email"),
-            _email_form(),
-            _guest_card(),
+            _divider(
+                rx.cond(
+                    AuthState.is_recover_mode,
+                    "or reset your password",
+                    "or with email",
+                ).to(str),
+            ),
+            rx.cond(
+                AuthState.is_recover_mode,
+                _recovery_form(),
+                _email_form(),
+            ),
+            rx.cond(
+                AuthState.is_recover_mode,
+                rx.fragment(),
+                _guest_card(),
+            ),
             _error_banner(),
             _status_banner(),
             class_name="mt-6",

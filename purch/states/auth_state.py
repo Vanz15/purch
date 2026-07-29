@@ -32,10 +32,12 @@ import reflex as rx
 
 from purch import backend
 from purch.supabase_auth import (
+    EmailAlreadyRegisteredError,
     build_google_oauth_url,
     exchange_code_for_session,
     is_configured,
     safe_auth_error,
+    send_password_reset_email,
     sign_in_with_password,
     sign_up_with_password,
 )
@@ -68,10 +70,11 @@ class AuthState(rx.State):
     auth_method: str = rx.LocalStorage("", name="purch_auth_method")
 
     # Form + UI state — plain state so it resets naturally on refresh.
-    mode: str = "signin"  # "signin" | "signup"
+    mode: str = "signin"  # "signin" | "signup" | "recover"
     email_input: str = ""
     password_input: str = ""
     name_input: str = ""
+    recovery_email: str = ""
 
     status: str = "idle"  # idle | busy | error | success
     error_text: str = ""
@@ -113,9 +116,13 @@ class AuthState(rx.State):
         return self.mode == "signup"
 
     @rx.var
+    def is_recover_mode(self) -> bool:
+        return self.mode == "recover"
+
+    @rx.var
     def submit_label(self) -> str:
         if self.is_busy:
-            return "Please wait…"
+            return "Please wait\u2026"
         return "Create account" if self.mode == "signup" else "Sign in"
 
     @rx.var
@@ -144,10 +151,34 @@ class AuthState(rx.State):
 
     @rx.event
     def toggle_mode(self):
+        # Cycle between signin ↔ signup. Recovery mode has its own
+        # explicit open/close events so it can be opened from either.
         self.mode = "signin" if self.mode == "signup" else "signup"
         self.error_text = ""
         self.info_text = ""
         self.status = "idle"
+
+    @rx.event
+    def open_recovery(self):
+        """Switch the sign-in card into forgot-password mode. Preserves
+        whatever the user has typed into the email field so they don't
+        have to retype it."""
+        self.recovery_email = (self.email_input or "").strip()
+        self.mode = "recover"
+        self.error_text = ""
+        self.info_text = ""
+        self.status = "idle"
+
+    @rx.event
+    def close_recovery(self):
+        self.mode = "signin"
+        self.error_text = ""
+        self.info_text = ""
+        self.status = "idle"
+
+    @rx.event
+    def set_recovery_email(self, value: str):
+        self.recovery_email = value
 
     @rx.event
     def dismiss_message(self):
@@ -217,7 +248,19 @@ class AuthState(rx.State):
 
         try:
             if self.mode == "signup":
-                result = sign_up_with_password(email, password, name or None)
+                try:
+                    result = sign_up_with_password(
+                        email, password, name or None
+                    )
+                except EmailAlreadyRegisteredError as dup:
+                    # Don't create a second account — nudge to sign in
+                    # or recover, and flip back to sign-in mode so the
+                    # existing password field is contextually correct.
+                    logging.exception("Unexpected error")
+                    logging.info("Duplicate signup blocked for existing email.")
+                    self._show_error(safe_auth_error(dup))
+                    self.mode = "signin"
+                    return
                 # Supabase may require email confirmation depending on
                 # project settings; treat "no session yet" as a helpful
                 # notice rather than an error.
@@ -247,40 +290,66 @@ class AuthState(rx.State):
             self._show_error(safe_auth_error(e))
 
     # ------------------------------------------------------------------ #
-    # Google OAuth
+    # Password recovery
     # ------------------------------------------------------------------ #
 
     @rx.event
-    def begin_google_login(self):
-        """Redirect the browser to Supabase's Google authorize endpoint."""
+    def submit_recovery(self, form_data: dict[str, str]):
+        """Send a password-reset email via Supabase.
+
+        The response is deliberately neutral ("if that email exists,
+        we've sent a link") so we don't leak which addresses are
+        registered. Rate-limit errors from Supabase are mapped to a
+        clear "please wait" message by `safe_auth_error`.
+        """
         if not is_configured():
             self._show_error(
-                "Google sign-in isn't available right now. "
+                "Password recovery isn't available right now. "
                 "Try guest access to preview Purch."
             )
             return
 
-        redirect_to = self._compute_redirect_url()
+        email = (
+            form_data.get("recovery_email") or self.recovery_email or ""
+        ).strip()
+        if not _EMAIL_RE.match(email):
+            self._show_error("Please enter a valid email address for recovery.")
+            return
+
         self.status = "busy"
         self.error_text = ""
-        self.info_text = "Redirecting to Google…"
-        self.oauth_status = "redirecting"
+        self.info_text = ""
         yield
 
         try:
-            oauth_url = build_google_oauth_url(redirect_to)
-            return rx.redirect(oauth_url)
+            redirect_to = self._compute_redirect_url()
+            send_password_reset_email(email, redirect_to)
+            self.info_text = (
+                "If an account exists for that email, a password reset "
+                "link is on its way. Check your inbox \u2014 and your "
+                "spam folder just in case."
+            )
+            self.status = "success"
+            self.recovery_email = ""
+            # Flip back to sign-in so the user can enter their new
+            # password once they've followed the link.
+            self.mode = "signin"
         except Exception as e:
-            logging.exception(f"Google OAuth start failed: {e}")
-            self.oauth_status = "error"
+            logging.exception(f"Password recovery failed: {e}")
             self._show_error(safe_auth_error(e))
 
     @rx.event
     def handle_oauth_callback(self):
-        """Runs on `/login` mount. If Supabase has redirected us back
-        with a `?code=...`, complete the exchange and persist the
-        session. Silent no-op when there's no code — safe to attach to
-        every login page load."""
+        """Process an OAuth callback when the login page is mounted."""
+        yield AuthState.begin_google_login
+
+    @rx.event
+    def begin_google_login(self):
+        """Complete a Google OAuth callback when a code is present.
+
+        When no callback code is present this event is a silent no-op, so it
+        is safe to attach to every login page load.
+        """
         try:
             params = self.router.url.query_parameters or {}
         except Exception:

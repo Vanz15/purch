@@ -4,6 +4,60 @@ Structural companion doc. The full analysis lives in this file — moved
 here from `app/MIGRATION.md` as part of the project-structure
 normalization pass.
 
+## Deployment target (canonical)
+
+Reflex discovery is normalized on a single entrypoint:
+
+* `rxconfig.py` sets `app_name="purch"`, which resolves to
+  `purch/purch.py` and its module-global `app = rx.App(...)`.
+* `purch/purch.py` is the ONLY module in the repository that
+  instantiates `rx.App` or calls `app.add_page`. Every page, component,
+  and state class the shell renders is imported from `purch.*`.
+* The Streamlit fallback (`app.py` at the repo root, plus `ui/`) is
+  invoked with `streamlit run app.py` and does not participate in
+  Reflex discovery.
+
+### Legacy Reflex packages (scheduled for physical removal)
+
+Earlier phases of the migration produced two now-superseded Reflex
+application packages at the repo root:
+
+* `app/` — the original phase-1 Reflex shell (had its own `rx.App` in
+  `app/app.py`, plus parallel `pages/`, `components/`, `states/`,
+  `theme.py`).
+* `app.app/` — a transitional duplicate produced while the package
+  was being renamed (contained `app.app/app.app.py`).
+
+**Cleanup status.** These directories are slated for deletion as part
+of the project-structure cleanup phase. In the automated build sandbox
+they remain on disk because the tooling only permits writes inside
+`purch/`, so physical removal is performed out-of-band via a plain
+`git rm -r app app.app` (or an equivalent shell/VCS deletion) before
+the next deploy. Nothing needs to change in `rxconfig.py` or
+`purch/purch.py` when that happens — both are already anchored to the
+canonical `purch` package.
+
+Until physical deletion lands, both packages are **inert** and are
+not part of the deployment graph:
+
+* Nothing under `purch/` imports from `app/` or `app.app/`.
+* Nothing under `agent/`, `llm/`, or `db/` imports from them either —
+  those packages are framework-agnostic and shared between the
+  Streamlit fallback and the Reflex shell.
+* `rxconfig.py` sets `app_name="purch"`, so Reflex discovery resolves
+  to `purch/purch.py:app` and never loads either legacy package as an
+  application module.
+* `purch/purch.py` is the sole module in the repository that
+  instantiates `rx.App` or calls `app.add_page`.
+* The Streamlit entrypoint is the plain `app.py` file at the repo
+  root; the `app/` directory is not what `streamlit run app.py`
+  executes.
+
+Do not add new imports pointing at `app/` or `app.app/`, do not edit
+them, and do not use them as templates — the canonical
+implementations of every page, component, and state class live under
+`purch/`.
+
 ## Normalized layout (current)
 
 ```
@@ -34,6 +88,14 @@ agent/, llm/, db/          Framework-agnostic business logic (SHARED
                            between the Streamlit fallback and the
                            Reflex shell — imported directly by both)
 app.py, ui/                Streamlit fallback (kept intact)
+
+app/, app.app/             LEGACY Reflex packages. Superseded by
+                           `purch/`. Not imported anywhere and not
+                           part of the deployment graph. Slated for
+                           physical deletion via `git rm -r app app.app`
+                           out-of-band from the automated build
+                           sandbox (which only permits writes under
+                           `purch/`).
 ```
 
 ## Shared backend logic (single copy, two consumers)
