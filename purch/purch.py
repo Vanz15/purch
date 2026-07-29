@@ -1,5 +1,10 @@
 """Canonical Purch Reflex application entry point.
 
+The normalized package exposes exactly one Reflex application: this module.
+is the only supported Reflex discovery target for the project.
+Legacy application modules outside ``purch/`` are not part of the Reflex
+entry point and must not be discovered or imported.
+
 This is the only module in the normalized application package that creates
 an ``rx.App`` or registers pages. Reflex discovery should use
 ``purch.purch:app``; legacy shells must not be imported as application entry
@@ -7,6 +12,7 @@ points.
 """
 
 import reflex as rx
+
 from purch.pages.analytics import analytics_page
 from purch.pages.chat import chat_page
 from purch.pages.index import index_page

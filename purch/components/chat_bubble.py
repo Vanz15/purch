@@ -89,7 +89,7 @@ def _assistant_bubble(msg: ChatMessage) -> rx.Component:
                 msg["time"],
                 class_name="text-xs text-[color:var(--purch-muted)] mt-1.5 ml-1",
             ),
-            class_name="max-w-[75%]",
+            class_name="max-w-[92%] sm:max-w-[85%] lg:max-w-[80%] min-w-0",
         ),
         class_name="flex justify-start items-start gap-2 mb-4",
     )
@@ -108,7 +108,10 @@ def _user_bubble(msg: ChatMessage) -> rx.Component:
             msg["time"],
             class_name="text-xs text-[color:var(--purch-muted)] mt-1.5 mr-1 text-right",
         ),
-        class_name="max-w-[75%] flex flex-col items-end",
+        class_name=(
+            "max-w-[92%] sm:max-w-[85%] lg:max-w-[80%] min-w-0 "
+            "flex flex-col items-end ml-auto self-end"
+        ),
     )
 
 

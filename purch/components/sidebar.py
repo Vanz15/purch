@@ -218,17 +218,62 @@ def _tone_section() -> rx.Component:
     )
 
 
+def _profile_avatar() -> rx.Component:
+    """Circular avatar: Google picture when available, initial letter for
+    email accounts, Purch 'P' mark for guests."""
+    initial_letter = rx.cond(
+        AuthState.display_name.length() > 0,
+        AuthState.display_name[0].upper(),
+        rx.cond(
+            AuthState.user_email.length() > 0,
+            AuthState.user_email[0].upper(),
+            "?",
+        ),
+    )
+    google_avatar = rx.el.img(
+        src=AuthState.user_picture,
+        alt=AuthState.display_name,
+        referrer_policy="no-referrer",
+        class_name=(
+            "w-9 h-9 rounded-full object-cover flex-shrink-0 "
+            "border border-[color:var(--purch-border)]"
+        ),
+    )
+    letter_avatar = rx.el.div(
+        initial_letter,
+        class_name=(
+            "w-9 h-9 rounded-full bg-[color:var(--purch-coral)] "
+            "text-white font-['Plus_Jakarta_Sans'] font-bold text-sm "
+            "flex items-center justify-center flex-shrink-0 uppercase"
+        ),
+    )
+    purch_avatar = rx.el.div(
+        "P",
+        class_name=(
+            "w-9 h-9 rounded-full bg-[color:var(--purch-dark)] "
+            "text-[color:var(--purch-gold)] font-['Playfair_Display'] "
+            "font-bold text-sm flex items-center justify-center flex-shrink-0"
+        ),
+    )
+    return rx.match(
+        AuthState.auth_method,
+        (
+            "google",
+            rx.cond(
+                AuthState.user_picture != "",
+                google_avatar,
+                letter_avatar,
+            ),
+        ),
+        ("email", letter_avatar),
+        purch_avatar,
+    )
+
+
 def _profile_section() -> rx.Component:
     return rx.el.div(
         rx.el.div(
-            rx.el.div(
-                "P",
-                class_name=(
-                    "w-9 h-9 rounded-full bg-[color:var(--purch-dark)] "
-                    "text-[color:var(--purch-gold)] font-['Playfair_Display'] "
-                    "font-bold text-sm flex items-center justify-center flex-shrink-0"
-                ),
-            ),
+            _profile_avatar(),
             rx.el.div(
                 rx.el.p(
                     AuthState.display_name,

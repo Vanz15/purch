@@ -245,7 +245,7 @@ def chat_page() -> rx.Component:
                     _authenticated_body(),
                     _unauthenticated_prompt(),
                 ),
-                class_name=f"{CLASSES['card']} p-7 sm:p-9",
+                class_name=f"{CLASSES['card']} p-3 sm:p-6 lg:p-8",
             ),
             class_name="max-w-3xl mx-auto w-full",
             on_mount=[

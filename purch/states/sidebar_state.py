@@ -29,7 +29,11 @@ class SidebarState(rx.State):
     total_limit: float = 0.0
     total_pct: int = 0
     current_tone: str = "nonchalant"
-    tone_options: list[str] = list(backend.VALID_TONES) + ["neutral"]
+    # Only these tones are available for selection right now; other
+    # personalities are temporarily disabled while their prompts are
+    # refined. The picker hides everything else and set_tone rejects
+    # anything not on this list.
+    tone_options: list[str] = ["neutral", "bestie", "sarcastic"]
     categories: list[str] = list(backend.CATEGORIES)
     display_name: str = "Guest"
     is_loaded: bool = False
