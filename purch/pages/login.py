@@ -349,6 +349,7 @@ def _recovery_form() -> rx.Component:
                 placeholder="you@example.com",
                 auto_complete="email",
                 default_value=AuthState.recovery_email,
+                key=AuthState.recovery_email,
                 disabled=AuthState.is_busy,
                 class_name=(
                     "mt-1 w-full rounded-xl border border-[color:var(--purch-border)] "

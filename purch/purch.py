@@ -1,21 +1,11 @@
 """Canonical Purch Reflex application entry point.
 
-The normalized package exposes exactly one Reflex application: this module. It
-is intentionally the only supported location for the Reflex app instance.
-Legacy root-level Reflex shells are intentionally not imported here.
-It is the only supported Reflex discovery target for the project.
-Legacy application modules outside ``purch/`` are not part of the
-canonical deployment entry point and must not be discovered or imported.
-The canonical app instance below is intentionally kept in this module so
-Reflex's app-location lint rule has one unambiguous owner. Legacy shells are
-not application entrypoints and are outside the canonical deployment graph.
-Reflex discovery is anchored to this module through ``rxconfig.py``.
+This is the only module under the normalized package that creates the Reflex
+application or registers pages. Reflex discovery is anchored here through
+``rxconfig.py``; legacy shells are intentionally outside the deployment graph.
 
-This is the only module in the normalized application package that creates
-an ``rx.App`` or registers pages. Reflex discovery should use
-``purch.purch:app``; legacy shells are intentionally excluded from the
-canonical deployment entry point. The legacy packages must not be imported
-or treated as Reflex application entrypoints.
+The legacy Reflex packages are not imported by this canonical entry point;
+all routes and components are owned by the ``purch`` package.
 """
 
 import reflex as rx

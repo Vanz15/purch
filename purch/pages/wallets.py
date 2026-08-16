@@ -10,6 +10,7 @@ from purch.components.wallet_sections import (
     signin_notice,
     summary_row,
     unavailable_notice,
+    wallet_analytics,
     wallet_form,
     wallet_grid,
 )
@@ -30,8 +31,9 @@ def _header_row() -> rx.Component:
                 ),
             ),
             rx.el.p(
-                "Nickname each place your money sits. Purch subtracts a "
-                "purchase from the wallet you pick in chat.",
+                "Nickname each place your money sits, and see your net "
+                "worth, assets, and liabilities at a glance. Purch "
+                "subtracts a purchase from the wallet you pick in chat.",
                 class_name=(
                     "text-sm text-[color:var(--purch-secondary-text)] mt-2 "
                     "max-w-xl"
@@ -74,6 +76,11 @@ def _content() -> rx.Component:
             unavailable_notice(),
             rx.el.div(
                 summary_row(),
+                rx.cond(
+                    WalletState.has_wallets,
+                    wallet_analytics(),
+                    rx.fragment(),
+                ),
                 wallet_form(),
                 rx.cond(
                     WalletState.has_wallets,

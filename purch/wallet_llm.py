@@ -86,6 +86,66 @@ _WALLET_QUERY_TOOL = {
     },
 }
 
+_DEBT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "extract_debt_details",
+        "description": (
+            "Extract whether the user borrowed money from someone or lent "
+            "money to someone, how much, and who/where is involved."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "is_debt_message": {
+                    "type": "boolean",
+                    "description": (
+                        "True only when the user is recording money they "
+                        "borrowed (they now owe it) or money they lent out "
+                        "(they expect it back). False for normal purchases, "
+                        "budgets, or questions."
+                    ),
+                },
+                "direction": {
+                    "type": "string",
+                    "enum": ["borrowed", "lent", "none"],
+                    "description": (
+                        "'borrowed' when the user received money they owe, "
+                        "'lent' when the user gave money they expect back."
+                    ),
+                },
+                "amount": {
+                    "type": "number",
+                    "description": "Amount involved. 0 if not stated.",
+                },
+                "person": {
+                    "type": "string",
+                    "description": (
+                        "Name of the person or place involved, e.g. 'Aivann', "
+                        "'Mama', 'Aling Nena's store'. Empty string if the "
+                        "user did not name anyone. Never invent a name."
+                    ),
+                },
+            },
+            "required": [
+                "is_debt_message",
+                "direction",
+                "amount",
+                "person",
+            ],
+        },
+    },
+}
+
+_DEBT_PROMPT = (
+    "You read a short money message from a budget tracker and extract "
+    "whether it records borrowed money (the user now owes it) or lent "
+    "money (the user expects it back), the amount, and the person or place "
+    "involved. Treat 'borrowed 250 to Aivann' and 'borrowed 250 from "
+    "Aivann' both as borrowed from Aivann. Never invent a name, never ask "
+    "for or extract account numbers or card details. Always call the tool."
+)
+
 _REF_PROMPT = (
     "You read a short expense message and extract only which money source "
     "or wallet it was paid from, if stated. Wallet types users may refer to: "
@@ -127,6 +187,51 @@ def extract_wallet_reference(message: str) -> str:
     except Exception as e:
         logging.exception(f"wallet reference extraction failed: {e}")
         return ""
+
+
+def extract_debt_details(message: str) -> dict[str, str | bool | float]:
+    """LLM fallback for borrowed/lent messages the local parser only
+    partially understood (usually a missing person or amount)."""
+    fallback: dict[str, str | bool | float] = {
+        "is_debt_message": False,
+        "direction": "none",
+        "amount": 0.0,
+        "person": "",
+    }
+    try:
+        client = get_client()
+        response = client.chat.completions.create(
+            model=THINKING_MODEL,
+            messages=[
+                {"role": "system", "content": _DEBT_PROMPT},
+                {"role": "user", "content": message},
+            ],
+            tools=[_DEBT_TOOL],
+            tool_choice={
+                "type": "function",
+                "function": {"name": "extract_debt_details"},
+            },
+        )
+        tool_calls = response.choices[0].message.tool_calls
+        if not tool_calls:
+            return fallback
+        args = json.loads(tool_calls[0].function.arguments)
+        person = str(args.get("person") or "").strip()
+        if person.lower() in ("none", "n/a", "unknown", "someone"):
+            person = ""
+        try:
+            amount = float(args.get("amount") or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        return {
+            "is_debt_message": bool(args.get("is_debt_message")),
+            "direction": str(args.get("direction") or "none"),
+            "amount": round(max(amount, 0.0), 2),
+            "person": person[:40],
+        }
+    except Exception as e:
+        logging.exception(f"debt detail extraction failed: {e}")
+        return fallback
 
 
 def extract_wallet_query(message: str) -> dict[str, str | bool]:

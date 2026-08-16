@@ -40,6 +40,76 @@ def _refresh_button() -> rx.Component:
     )
 
 
+def _month_nav_button(label: str, delta: int, disabled) -> rx.Component:
+    return rx.el.button(
+        label,
+        on_click=lambda: AnalyticsState.shift_month(delta),
+        disabled=disabled,
+        type="button",
+        class_name=(
+            "w-8 h-8 shrink-0 rounded-lg border "
+            "border-[color:var(--purch-border)] bg-[color:var(--purch-paper)] "
+            "text-[color:var(--purch-ink)] text-sm font-semibold "
+            "hover:border-[color:var(--purch-coral)] "
+            "hover:text-[color:var(--purch-coral)] transition-colors "
+            "disabled:opacity-40 disabled:cursor-not-allowed "
+            "disabled:hover:border-[color:var(--purch-border)] "
+            "disabled:hover:text-[color:var(--purch-ink)]"
+        ),
+    )
+
+
+def _month_selector() -> rx.Component:
+    """Month browser: ← / → step through months, and a 'This month'
+    reset appears only when viewing a past month."""
+    return rx.el.div(
+        rx.el.div(
+            _month_nav_button(
+                "\u2190",
+                -1,
+                AnalyticsState.is_loading | ~AnalyticsState.can_go_back,
+            ),
+            rx.el.div(
+                rx.el.div("Viewing", class_name=CLASSES["eyebrow"]),
+                rx.el.div(
+                    AnalyticsState.selected_month_display,
+                    class_name=(
+                        "font-['Playfair_Display'] font-bold text-sm "
+                        "text-[color:var(--purch-ink)] leading-tight"
+                    ),
+                ),
+                class_name="px-2 text-center min-w-[8.5rem]",
+            ),
+            _month_nav_button(
+                "\u2192",
+                1,
+                AnalyticsState.is_loading | AnalyticsState.is_current_month,
+            ),
+            class_name=(
+                "flex items-center gap-1 rounded-xl border "
+                "border-[color:var(--purch-border)] "
+                "bg-[color:var(--purch-parchment)] p-1.5"
+            ),
+        ),
+        rx.cond(
+            AnalyticsState.is_current_month,
+            rx.fragment(),
+            rx.el.button(
+                "This month",
+                on_click=AnalyticsState.reset_to_current_month,
+                disabled=AnalyticsState.is_loading,
+                type="button",
+                class_name=(
+                    CLASSES["outline_button"]
+                    + " text-xs py-2 disabled:opacity-60 "
+                    + "disabled:cursor-not-allowed"
+                ),
+            ),
+        ),
+        class_name="flex flex-wrap items-center gap-2",
+    )
+
+
 def _page_header() -> rx.Component:
     return rx.el.div(
         rx.el.div(
@@ -82,7 +152,11 @@ def _page_header() -> rx.Component:
             ),
             class_name="flex-1 min-w-0",
         ),
-        _refresh_button(),
+        rx.el.div(
+            _month_selector(),
+            _refresh_button(),
+            class_name="flex flex-wrap items-center gap-2",
+        ),
         class_name=(
             "flex flex-col sm:flex-row sm:items-end sm:justify-between "
             "gap-3 mb-6"

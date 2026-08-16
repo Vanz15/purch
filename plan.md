@@ -1,4 +1,5 @@
-## Wallet Tracking Plan
-- [x] Set up wallet storage and privacy-safe wallet records so users can add balances for cash, bank-style buckets, debts, loans, savings, and lent money without entering account details.
-- [x] Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries.
-- [x] Extend analytics and sidebar surfaces to show wallet/bank status alongside spending, preserving the Purch espresso/coral parchment visual identity.
+## Wallet Follow-up Fix Plan
+- [x] Move wallet analytics from the Analytics page to the Wallets page, with net worth, assets, liabilities, Debit/Lent/Borrowed groups, and group insights preserved in the Purch espresso/coral parchment visual identity.
+- [x] Fix chat wallet intent handling for borrowed/lent messages, auto-create named Borrowed/Lent wallets when a person/place is included, and update empty-chat suggestions to include wallet names.
+- [x] Add real wallet deletion with a secondary confirmation step, while keeping archive/restore behavior available.
+- [x] Add month selection to spending Analytics so users can view previous months instead of only the current month.

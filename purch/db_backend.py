@@ -26,7 +26,7 @@ import json
 import logging
 import os
 from datetime import date, datetime, timedelta
-from typing import Any, Optional
+from typing import Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -35,10 +35,10 @@ from sqlalchemy.engine import Engine
 # Engine selection
 # ---------------------------------------------------------------------------
 
-_PG_URL_RAW: Optional[str] = os.getenv("REFLEX_DB_URL") or os.getenv("DB_URL")
+_PG_URL_RAW: str | None = os.getenv("REFLEX_DB_URL") or os.getenv("DB_URL")
 USE_POSTGRES: bool = bool(_PG_URL_RAW)
 
-_engine: Optional[Engine] = None
+_engine: Engine | None = None
 
 
 def _normalize_url(url: str) -> str:
@@ -92,7 +92,7 @@ def get_engine() -> Engine:
 _PH_OFFSET = timedelta(hours=8)
 
 
-def _to_float(v: Any) -> float:
+def _to_float(v: object) -> float:
     """NUMERIC columns come back as Decimal — normalize to float so the
     UI/agent never has to reason about it."""
     if v is None:
@@ -103,7 +103,7 @@ def _to_float(v: Any) -> float:
         return 0.0
 
 
-def _to_local_time_str(v: Any) -> str:
+def _to_local_time_str(v: object) -> str:
     """Match the shape of `db.models.to_local_time_str` — accepts either
     a stored string (legacy SQLite path) or a `datetime` (Postgres) and
     returns a Philippines-local `YYYY-MM-DD HH:MM` string."""
@@ -169,7 +169,7 @@ def pg_insert_transaction(
         raise ValueError("item and category cannot be empty")
 
     engine = get_engine()
-    params: dict[str, Any] = {
+    params: dict[str, object] = {
         "user_id": user_id,
         "raw_text": raw_text,
         "item": item,
@@ -258,7 +258,7 @@ def pg_query_transactions(
     Fixed SQL fragments (never raw user input) are spliced into the
     WHERE clause; every value goes through bound parameters."""
     where = ["user_id = :uid"]
-    params: dict[str, Any] = {"uid": user_id}
+    params: dict[str, object] = {"uid": user_id}
 
     if item_hint:
         where.append("item ILIKE :hint")
@@ -387,7 +387,7 @@ def pg_find_best_match_transaction(
     user_id: str, item_hint: Optional[str] = None, limit: int = 5
 ) -> list[dict]:
     where = ["user_id = :uid"]
-    params: dict[str, Any] = {"uid": user_id, "lim": int(limit)}
+    params: dict[str, object] = {"uid": user_id, "lim": int(limit)}
     if item_hint:
         where.append("item ILIKE :hint")
         params["hint"] = f"%{item_hint}%"
@@ -422,7 +422,7 @@ def pg_update_transaction(
         raise ValueError("amount must be positive")
 
     sets: list[str] = []
-    params: dict[str, Any] = {"id": int(tx_id)}
+    params: dict[str, object] = {"id": int(tx_id)}
     if item is not None:
         sets.append("item = :item")
         params["item"] = item

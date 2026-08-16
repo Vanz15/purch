@@ -12,9 +12,8 @@ from purch.states.analytics_state import (
     CategoryRow,
     RecentTx,
     TrendPoint,
-    WalletBar,
 )
-from purch.theme import CLASSES, ROUTES
+from purch.theme import CLASSES
 
 # ---------------------------------------------------------------------- #
 # Small primitives
@@ -97,7 +96,7 @@ def _kpi_card(
 def _kpi_row() -> rx.Component:
     return rx.el.div(
         _kpi_card(
-            "This month spent",
+            "Spent this month",
             rx.el.span(
                 rx.el.span(
                     "₱",
@@ -110,16 +109,20 @@ def _kpi_row() -> rx.Component:
                 rx.el.span(
                     "Across ",
                     AnalyticsState.month_tx_count.to_string(),
-                    " transactions",
+                    " transactions in ",
+                    AnalyticsState.selected_month_display,
                 ),
-                rx.el.span("No transactions yet this month"),
+                rx.el.span(
+                    "No transactions in ",
+                    AnalyticsState.selected_month_display,
+                ),
             ),
             tone="coral",
         ),
         _kpi_card(
             "Transactions",
             AnalyticsState.month_tx_count.to_string(),
-            rx.el.span("Logged this month"),
+            rx.el.span("Logged in ", AnalyticsState.selected_month_display),
         ),
         _kpi_card(
             "Top category",
@@ -129,7 +132,8 @@ def _kpi_row() -> rx.Component:
                 rx.el.span(
                     "₱",
                     AnalyticsState.top_category_amount.to_string(),
-                    " this month",
+                    " in ",
+                    AnalyticsState.selected_month_display,
                 ),
                 rx.el.span("—"),
             ),
@@ -156,425 +160,9 @@ def _kpi_row() -> rx.Component:
                 ),
             ),
         ),
-        _kpi_card(
-            "Spendable now",
-            rx.el.span(
-                rx.el.span(
-                    "\u20b1",
-                    class_name="text-xl text-[color:var(--purch-muted)] mr-0.5",
-                ),
-                AnalyticsState.wallet_assets_display,
-            ),
-            rx.cond(
-                AnalyticsState.wallets_unavailable,
-                rx.el.span("Wallets need the cloud database"),
-                rx.cond(
-                    AnalyticsState.has_wallet_liabilities,
-                    rx.el.span(
-                        "\u20b1",
-                        AnalyticsState.wallet_liabilities_display,
-                        " owed / lent out",
-                    ),
-                    rx.cond(
-                        AnalyticsState.has_wallets,
-                        rx.el.span("Across your active wallets"),
-                        rx.el.span("Add a wallet to track balances"),
-                    ),
-                ),
-            ),
-            tone="gold",
-        ),
         class_name=(
-            "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full"
+            "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full"
         ),
-    )
-
-
-# ---------------------------------------------------------------------- #
-# Wallet / bank status
-# ---------------------------------------------------------------------- #
-
-
-def _wallet_totals() -> rx.Component:
-    """Net worth hero + assets / liabilities tiles."""
-
-    def tile(label: str, value: rx.Var, tone: str) -> rx.Component:
-        return rx.el.div(
-            rx.el.div(label, class_name=CLASSES["eyebrow"]),
-            rx.el.div(
-                rx.el.span(
-                    "\u20b1",
-                    class_name="text-base text-[color:var(--purch-muted)] mr-0.5",
-                ),
-                rx.el.span(value),
-                class_name=(
-                    "font-['DM_Mono'] font-bold text-xl mt-1.5 "
-                    + {
-                        "teal": "text-[color:var(--purch-teal)]",
-                        "danger": "text-[color:var(--purch-danger)]",
-                        "gold": "text-[color:var(--purch-gold)]",
-                    }.get(tone, "text-[color:var(--purch-ink)]")
-                ),
-            ),
-            class_name=(
-                "rounded-xl border border-[color:var(--purch-border)] "
-                "bg-[color:var(--purch-parchment)] p-4 w-full"
-            ),
-        )
-
-    return rx.el.div(
-        rx.el.div(
-            rx.el.div(
-                "Net worth",
-                class_name=(
-                    "font-['DM_Mono'] text-[0.65rem] uppercase "
-                    "tracking-[0.12em] text-[color:var(--purch-gold)]"
-                ),
-            ),
-            rx.el.div(
-                rx.el.span(
-                    "\u20b1",
-                    class_name=(
-                        "font-['DM_Mono'] text-2xl "
-                        "text-[color:var(--purch-parchment)]/70 mr-1"
-                    ),
-                ),
-                rx.el.span(
-                    AnalyticsState.wallet_net_display,
-                    class_name=(
-                        "font-['Playfair_Display'] font-bold text-4xl "
-                        "text-[color:var(--purch-parchment)]"
-                    ),
-                ),
-                class_name="flex items-baseline mt-2",
-            ),
-            rx.el.p(
-                "Assets minus everything you owe.",
-                class_name=("text-xs text-[color:var(--purch-muted)] mt-2 m-0"),
-            ),
-            class_name=(
-                "bg-[color:var(--purch-dark)] rounded-xl p-5 mb-3 w-full"
-            ),
-        ),
-        rx.el.div(
-            tile("Assets", AnalyticsState.wallet_assets_display, "teal"),
-            tile(
-                "Liabilities",
-                AnalyticsState.wallet_liabilities_display,
-                "danger",
-            ),
-            class_name="grid grid-cols-1 sm:grid-cols-2 gap-3",
-        ),
-        class_name="mb-5",
-    )
-
-
-def _wallet_group_block(
-    label: str,
-    subtitle: str,
-    total_display: rx.Var,
-    insight: rx.Var,
-    bars: rx.Var,
-    has_bars: rx.Var,
-    tone: str,
-) -> rx.Component:
-    amount_class = "font-['DM_Mono'] text-lg font-bold " + {
-        "teal": "text-[color:var(--purch-teal)]",
-        "gold": "text-[color:var(--purch-gold)]",
-        "danger": "text-[color:var(--purch-danger)]",
-    }.get(tone, "text-[color:var(--purch-ink)]")
-    return rx.el.div(
-        rx.el.div(
-            rx.el.div(
-                rx.el.h3(
-                    label,
-                    class_name=(
-                        "font-['Playfair_Display'] font-bold text-base "
-                        "text-[color:var(--purch-ink)] m-0"
-                    ),
-                ),
-                rx.el.p(
-                    subtitle,
-                    class_name=f"{CLASSES['eyebrow']} mt-0.5 m-0",
-                ),
-                class_name="flex-1 min-w-0",
-            ),
-            rx.el.span(
-                rx.el.span("\u20b1", total_display),
-                class_name=amount_class,
-            ),
-            class_name="flex items-start justify-between gap-3",
-        ),
-        rx.el.p(
-            insight,
-            class_name=(
-                "text-xs text-[color:var(--purch-muted)] mt-1.5 mb-3 "
-                "leading-relaxed m-0"
-            ),
-        ),
-        rx.cond(
-            has_bars,
-            rx.el.div(rx.foreach(bars, _wallet_bar)),
-            rx.fragment(),
-        ),
-        class_name=(
-            "rounded-xl border border-[color:var(--purch-border)] "
-            "bg-[color:var(--purch-parchment)] p-4 w-full"
-        ),
-    )
-
-
-def _wallet_groups() -> rx.Component:
-    return rx.el.div(
-        _wallet_group_block(
-            "Debit",
-            "Bank · Cash · Savings",
-            AnalyticsState.debit_total_display,
-            AnalyticsState.debit_insight,
-            AnalyticsState.debit_bars,
-            AnalyticsState.has_debit_wallets,
-            "teal",
-        ),
-        _wallet_group_block(
-            "Lent",
-            "Money you're waiting on",
-            AnalyticsState.lent_total_display,
-            AnalyticsState.lent_insight,
-            AnalyticsState.lent_bars,
-            AnalyticsState.has_lent_wallets,
-            "gold",
-        ),
-        _wallet_group_block(
-            "Borrowed",
-            "Debt · Loan",
-            AnalyticsState.borrowed_total_display,
-            AnalyticsState.borrowed_insight,
-            AnalyticsState.borrowed_bars,
-            AnalyticsState.has_borrowed_wallets,
-            "danger",
-        ),
-        class_name="grid grid-cols-1 lg:grid-cols-3 gap-3",
-    )
-
-
-def _wallet_bar(wallet: WalletBar) -> rx.Component:
-    fill_class = rx.match(
-        wallet["accent"],
-        (
-            "gold",
-            "h-full rounded-full bg-gradient-to-r "
-            "from-[color:var(--purch-gold)] to-[color:var(--purch-coral-light)]",
-        ),
-        (
-            "teal",
-            "h-full rounded-full bg-gradient-to-r "
-            "from-[color:var(--purch-teal)] to-[color:var(--purch-gold)]",
-        ),
-        ("danger", "h-full rounded-full bg-[color:var(--purch-danger)]"),
-        "h-full rounded-full bg-[color:var(--purch-muted)]",
-    )
-    return rx.el.div(
-        rx.el.div(
-            rx.el.div(
-                rx.el.span(
-                    wallet["name"],
-                    class_name=(
-                        "text-sm font-semibold text-[color:var(--purch-ink)] "
-                        "truncate"
-                    ),
-                ),
-                _type_pill(wallet["wallet_type"], wallet["accent"]),
-                class_name="flex items-center gap-2 min-w-0",
-            ),
-            rx.el.span(
-                rx.el.span("\u20b1", wallet["balance_display"]),
-                class_name=rx.cond(
-                    wallet["is_liability"],
-                    "font-['DM_Mono'] text-sm font-bold "
-                    "text-[color:var(--purch-danger)] shrink-0",
-                    "font-['DM_Mono'] text-sm font-bold "
-                    "text-[color:var(--purch-ink)] shrink-0",
-                ),
-            ),
-            class_name="flex items-center justify-between gap-3 mb-1.5",
-        ),
-        rx.el.div(
-            rx.el.div(
-                class_name=fill_class,
-                style={"width": wallet["pct"].to_string() + "%"},
-            ),
-            class_name=(
-                "h-2.5 rounded-full bg-[color:var(--purch-border)] "
-                "overflow-hidden"
-            ),
-        ),
-        rx.el.div(
-            rx.el.span(
-                wallet["movement_display"],
-                class_name=(
-                    "font-['DM_Mono'] text-[0.65rem] "
-                    "text-[color:var(--purch-muted)]"
-                ),
-            ),
-            rx.cond(
-                wallet["movement_count"] > 0,
-                rx.el.span(
-                    wallet["movement_count"].to_string(),
-                    " movements",
-                    class_name=(
-                        "font-['DM_Mono'] text-[0.65rem] "
-                        "text-[color:var(--purch-muted)]"
-                    ),
-                ),
-                rx.fragment(),
-            ),
-            class_name="flex items-center justify-between mt-1",
-        ),
-        class_name="mb-4 last:mb-0",
-    )
-
-
-def _type_pill(wallet_type: rx.Var, accent: rx.Var) -> rx.Component:
-    return rx.el.span(
-        wallet_type,
-        class_name=rx.match(
-            accent,
-            (
-                "gold",
-                "inline-flex items-center rounded-full px-2 py-0.5 "
-                "font-['DM_Mono'] text-[0.55rem] uppercase tracking-[0.1em] "
-                "bg-[color:var(--purch-gold)]/15 text-[color:var(--purch-gold)] "
-                "shrink-0",
-            ),
-            (
-                "teal",
-                "inline-flex items-center rounded-full px-2 py-0.5 "
-                "font-['DM_Mono'] text-[0.55rem] uppercase tracking-[0.1em] "
-                "bg-[color:var(--purch-teal)]/15 text-[color:var(--purch-teal)] "
-                "shrink-0",
-            ),
-            (
-                "danger",
-                "inline-flex items-center rounded-full px-2 py-0.5 "
-                "font-['DM_Mono'] text-[0.55rem] uppercase tracking-[0.1em] "
-                "bg-[color:var(--purch-danger)]/10 "
-                "text-[color:var(--purch-danger)] shrink-0",
-            ),
-            "inline-flex items-center rounded-full px-2 py-0.5 "
-            "font-['DM_Mono'] text-[0.55rem] uppercase tracking-[0.1em] "
-            "bg-[color:var(--purch-parchment)] "
-            "text-[color:var(--purch-muted)] shrink-0",
-        ),
-    )
-
-
-def _wallet_detail_row(wallet: WalletBar) -> rx.Component:
-    return rx.el.div(
-        rx.el.div(
-            rx.el.p(
-                wallet["name"],
-                class_name=(
-                    "text-sm font-semibold text-[color:var(--purch-ink)] "
-                    "m-0 truncate leading-tight"
-                ),
-            ),
-            rx.el.p(
-                _type_pill(wallet["wallet_type"], wallet["accent"]),
-                rx.cond(
-                    wallet["note"] != "",
-                    rx.el.span(
-                        wallet["note"],
-                        class_name=(
-                            "text-[0.7rem] text-[color:var(--purch-muted)] ml-2"
-                        ),
-                    ),
-                    rx.fragment(),
-                ),
-                class_name="mt-1 m-0 flex items-center min-w-0",
-            ),
-            class_name="flex-1 min-w-0",
-        ),
-        rx.el.div(
-            rx.el.span(
-                rx.el.span("\u20b1", wallet["balance_display"]),
-                class_name=rx.cond(
-                    wallet["is_liability"],
-                    "font-['DM_Mono'] text-sm font-bold "
-                    "text-[color:var(--purch-danger)]",
-                    "font-['DM_Mono'] text-sm font-bold "
-                    "text-[color:var(--purch-teal)]",
-                ),
-            ),
-            class_name="ml-3 shrink-0 text-right",
-        ),
-        class_name=(
-            "flex items-start justify-between py-3 "
-            "border-b border-dashed border-[color:var(--purch-border)] "
-            "last:border-b-0"
-        ),
-    )
-
-
-def _wallet_section() -> rx.Component:
-    return rx.el.section(
-        _section_heading(
-            "Wallet & bank status",
-            "Where your money sits",
-            rx.el.a(
-                "Manage wallets \u2192",
-                href=ROUTES["wallets"],
-                class_name=(
-                    "text-xs font-semibold text-[color:var(--purch-coral)] "
-                    "hover:text-[color:var(--purch-coral-light)] "
-                    "transition-colors"
-                ),
-            ),
-        ),
-        rx.cond(
-            AnalyticsState.wallets_unavailable,
-            _empty_note(
-                "Wallet balances need the cloud database \u2014 spending "
-                "analytics above still works."
-            ),
-            rx.cond(
-                AnalyticsState.has_wallets,
-                rx.el.div(
-                    _wallet_totals(),
-                    _wallet_groups(),
-                    rx.el.div(
-                        rx.el.div(
-                            "Wallet details",
-                            class_name=f"{CLASSES['eyebrow']} mb-1",
-                        ),
-                        rx.foreach(
-                            AnalyticsState.wallet_bars, _wallet_detail_row
-                        ),
-                        class_name="mt-5",
-                    ),
-                ),
-                rx.el.div(
-                    rx.el.p(
-                        "No wallets yet.",
-                        class_name=(
-                            "font-['Playfair_Display'] font-bold text-lg "
-                            "text-[color:var(--purch-ink)] mb-1"
-                        ),
-                    ),
-                    rx.el.p(
-                        "Add cash, bank, savings, debt, or lent-out wallets "
-                        "and their status will appear here beside your spending.",
-                        class_name="text-sm text-[color:var(--purch-muted)]",
-                    ),
-                    rx.el.a(
-                        "Add a wallet",
-                        href=ROUTES["wallets"],
-                        class_name=CLASSES["primary_button"] + " mt-4 text-sm",
-                    ),
-                    class_name="py-8 text-center flex flex-col items-center",
-                ),
-            ),
-        ),
-        class_name=f"{CLASSES['card']} p-6",
     )
 
 
@@ -620,7 +208,7 @@ def _category_row(row: CategoryRow) -> rx.Component:
                     "width": rx.cond(
                         row["pct_of_total"] > 100,
                         "100%",
-                        row["pct_of_total"].to_string() + "%",
+                        f"{row['pct_of_total']}%",
                     )
                 },
             ),
@@ -630,8 +218,9 @@ def _category_row(row: CategoryRow) -> rx.Component:
         ),
         rx.el.div(
             rx.el.span(
-                row["pct_of_total"].to_string(),
-                "% of monthly spend",
+                rx.el.span(
+                    row["pct_of_total"].to_string(), "% of monthly spend"
+                ),
                 class_name=(
                     "font-['DM_Mono'] text-[0.65rem] text-[color:var(--purch-muted)]"
                 ),
@@ -656,7 +245,7 @@ def _category_section() -> rx.Component:
             AnalyticsState.has_categories,
             rx.el.div(rx.foreach(AnalyticsState.category_rows, _category_row)),
             _empty_note(
-                "No spending logged this month yet — try 'coffee 150' in chat."
+                "No spending logged for this month — try 'coffee 150' in chat."
             ),
         ),
         class_name=f"{CLASSES['card']} p-6",
@@ -687,11 +276,11 @@ def _trend_bar(point: TrendPoint, index: rx.Var) -> rx.Component:
             style={
                 "height": rx.cond(
                     point["total"] > 0,
-                    f"calc({ratio}% + 4px)",
+                    f"{ratio}%",
                     "3px",
                 )
             },
-            title=f"{point['day']} · ₱{point['total']} · {point['count']} tx",
+            title=point["day"],
         ),
         class_name="flex flex-col justify-end h-full flex-1 min-w-0 px-[1px]",
     )
@@ -700,7 +289,7 @@ def _trend_bar(point: TrendPoint, index: rx.Var) -> rx.Component:
 def _trend_section() -> rx.Component:
     return rx.el.section(
         _section_heading(
-            "Last 30 days",
+            "Daily spend",
             "Spending trend",
             rx.cond(
                 AnalyticsState.trend_peak > 0,
@@ -746,7 +335,7 @@ def _trend_section() -> rx.Component:
                 ),
             ),
             _empty_note(
-                "No activity in the last 30 days — log a purchase to see the trend."
+                "No activity in this month — log a purchase to see the trend."
             ),
         ),
         class_name=f"{CLASSES['card']} p-6",
@@ -841,7 +430,7 @@ def _budget_card(row: BudgetStatusRow) -> rx.Component:
                     "width": rx.cond(
                         row["pct"] > 100,
                         "100%",
-                        row["pct"].to_string() + "%",
+                        f"{row['pct']}%",
                     )
                 },
             ),
@@ -888,7 +477,7 @@ def _budgets_section() -> rx.Component:
     return rx.el.section(
         _section_heading(
             "Budget status",
-            "This month vs. plan",
+            "Selected month vs. plan",
             rx.cond(
                 AnalyticsState.has_budgets,
                 rx.el.span(
@@ -901,6 +490,17 @@ def _budgets_section() -> rx.Component:
                 ),
                 rx.fragment(),
             ),
+        ),
+        rx.cond(
+            AnalyticsState.is_past_month & AnalyticsState.has_budgets,
+            rx.el.p(
+                "Budget limits reflect your current monthly plan, compared "
+                "against what you spent in this month.",
+                class_name=(
+                    "text-xs text-[color:var(--purch-muted)] italic mb-3 m-0"
+                ),
+            ),
+            rx.fragment(),
         ),
         rx.cond(
             AnalyticsState.has_budgets,
@@ -1002,7 +602,7 @@ def _recent_section() -> rx.Component:
             rx.el.div(
                 rx.foreach(AnalyticsState.recent_transactions, _recent_row),
             ),
-            _empty_note("Nothing logged yet."),
+            _empty_note("Nothing logged in this month."),
         ),
         class_name=f"{CLASSES['card']} p-6",
     )
@@ -1161,8 +761,9 @@ def empty_dashboard() -> rx.Component:
             ),
         ),
         rx.el.p(
-            "Log your first purchase in chat and it'll show up here — "
-            "spending by category, day-over-day trend, and budget usage.",
+            "Nothing was logged for this month. Use the month arrows above "
+            "to browse another month, or log a purchase in chat — spending "
+            "by category, day-over-day trend, and budget usage appear here.",
             class_name=(
                 "text-sm text-[color:var(--purch-muted)] mt-2 max-w-md "
                 "text-center leading-relaxed"
@@ -1192,10 +793,6 @@ def dashboard_body() -> rx.Component:
             _category_section(),
             _trend_section(),
             class_name="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6",
-        ),
-        rx.el.div(
-            _wallet_section(),
-            class_name="mt-6",
         ),
         rx.el.div(
             _budgets_section(),

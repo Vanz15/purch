@@ -32,7 +32,7 @@ def _total_budget_card() -> rx.Component:
                 SidebarState.total_spent.to_string(),
                 class_name="font-['DM_Mono'] text-2xl font-bold text-[color:var(--purch-gold)]",
             ),
-            class_name="mb-2",
+            class_name="flex items-baseline mb-2",
         ),
         rx.el.div(
             rx.el.div(
@@ -45,7 +45,7 @@ def _total_budget_card() -> rx.Component:
                     "width": rx.cond(
                         SidebarState.total_pct > 100,
                         "100%",
-                        SidebarState.total_pct.to_string() + "%",
+                        f"{SidebarState.total_pct}%",
                     )
                 },
             ),
@@ -112,7 +112,7 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                         "width": rx.cond(
                             row["pct"] > 100,
                             "100%",
-                            row["pct"].to_string() + "%",
+                            f"{row['pct']}%",
                         )
                     },
                 ),
@@ -256,7 +256,7 @@ def _wallet_mini_row(wallet: WalletMiniRow) -> rx.Component:
                     ),
                     "h-full rounded-full bg-[color:var(--purch-muted)]",
                 ),
-                style={"width": wallet["pct"].to_string() + "%"},
+                style={"width": f"{wallet['pct']}%"},
             ),
             class_name=(
                 "h-1 rounded-full bg-[color:var(--purch-border)] overflow-hidden"
@@ -552,6 +552,7 @@ def sidebar() -> rx.Component:
         NavState.sidebar_open,
         rx.el.div(
             rx.el.button(
+                "Close sidebar",
                 on_click=NavState.toggle_sidebar,
                 class_name=("fixed inset-0 top-12 z-30 bg-black/20 lg:hidden"),
                 aria_label="Close sidebar",

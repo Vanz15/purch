@@ -5,7 +5,7 @@ import reflex as rx
 from purch.components.chat_bubble import chat_bubble, typing_indicator
 from purch.components.layout import page_shell
 from purch.states.auth_state import AuthState
-from purch.states.chat_state import PROMPT_CHIPS, ChatState, WalletChoice
+from purch.states.chat_state import ChatState, WalletChoice
 from purch.theme import CLASSES, ROUTES
 
 
@@ -38,7 +38,8 @@ def _empty_state() -> rx.Component:
             class_name=f"{CLASSES['display_heading']} text-xl mt-4",
         ),
         rx.el.p(
-            "Tell me what you bought, ask what you spent, or set a budget. "
+            "Tell me what you bought and which wallet it came from, log what "
+            "you borrowed or lent, ask what you spent, or set a budget. "
             "No forms, no dropdowns — just a quick, natural chat.",
             class_name=(
                 "text-base text-[color:var(--purch-muted)] mt-3 max-w-md "
@@ -46,7 +47,7 @@ def _empty_state() -> rx.Component:
             ),
         ),
         rx.el.div(
-            rx.foreach(PROMPT_CHIPS, _prompt_chip),
+            rx.foreach(ChatState.prompt_chips, _prompt_chip),
             class_name="flex flex-wrap justify-center gap-2 mt-6 max-w-md",
         ),
         class_name="flex flex-col items-center justify-center py-12 sm:py-16",

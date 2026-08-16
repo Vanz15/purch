@@ -43,33 +43,367 @@ def _type_badge(wallet_type: rx.Var, accent: rx.Var) -> rx.Component:
     )
 
 
+def _money_tile(label: str, value: rx.Var, tone: str) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(label, class_name=CLASSES["eyebrow"]),
+        rx.el.div(
+            rx.el.span(
+                "₱",
+                class_name="text-lg text-[color:var(--purch-muted)] mr-0.5",
+            ),
+            rx.el.span(value),
+            class_name=(
+                "font-['DM_Mono'] font-bold text-2xl mt-2 "
+                + {
+                    "gold": "text-[color:var(--purch-gold)]",
+                    "danger": "text-[color:var(--purch-danger)]",
+                    "teal": "text-[color:var(--purch-teal)]",
+                    "coral": "text-[color:var(--purch-coral)]",
+                }.get(tone, "text-[color:var(--purch-ink)]")
+            ),
+        ),
+        class_name=f"{CLASSES['card']} p-5 w-full h-full",
+    )
+
+
 def summary_row() -> rx.Component:
-    def tile(label: str, value: rx.Var, tone: str) -> rx.Component:
-        return rx.el.div(
-            rx.el.div(label, class_name=CLASSES["eyebrow"]),
+    """Prominent net-worth hero (espresso surface, gold numerals) with the
+    assets / liabilities pair beside it."""
+    return rx.el.div(
+        rx.el.div(
+            rx.el.div(
+                "Net worth",
+                class_name=(
+                    "font-['DM_Mono'] text-[0.65rem] uppercase "
+                    "tracking-[0.12em] text-[color:var(--purch-gold)]"
+                ),
+            ),
             rx.el.div(
                 rx.el.span(
                     "₱",
-                    class_name="text-lg text-[color:var(--purch-muted)] mr-0.5",
+                    class_name=(
+                        "font-['DM_Mono'] text-2xl "
+                        "text-[color:var(--purch-parchment)]/70 mr-1"
+                    ),
                 ),
-                rx.el.span(value),
-                class_name=(
-                    "font-['DM_Mono'] font-bold text-2xl mt-2 "
-                    + {
-                        "gold": "text-[color:var(--purch-gold)]",
-                        "danger": "text-[color:var(--purch-danger)]",
-                        "coral": "text-[color:var(--purch-coral)]",
-                    }.get(tone, "text-[color:var(--purch-ink)]")
+                rx.el.span(
+                    WalletState.net_display,
+                    class_name=(
+                        "font-['Playfair_Display'] font-bold "
+                        "text-4xl sm:text-5xl "
+                        "text-[color:var(--purch-parchment)]"
+                    ),
+                ),
+                class_name="flex items-baseline mt-2",
+            ),
+            rx.el.p(
+                "Everything you hold, minus everything you owe.",
+                class_name="text-xs text-[color:var(--purch-muted)] mt-2 m-0",
+            ),
+            class_name=(
+                "bg-[color:var(--purch-dark)] rounded-2xl p-6 w-full "
+                "lg:col-span-2"
+            ),
+        ),
+        _money_tile("Assets", WalletState.assets_display, "teal"),
+        _money_tile("Liabilities", WalletState.liabilities_display, "danger"),
+        class_name="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full",
+    )
+
+
+def _group_bar(wallet: WalletRow) -> rx.Component:
+    fill_class = rx.match(
+        wallet["accent"],
+        (
+            "gold",
+            "h-full rounded-full bg-gradient-to-r "
+            "from-[color:var(--purch-gold)] to-[color:var(--purch-coral-light)]",
+        ),
+        (
+            "teal",
+            "h-full rounded-full bg-gradient-to-r "
+            "from-[color:var(--purch-teal)] to-[color:var(--purch-gold)]",
+        ),
+        ("danger", "h-full rounded-full bg-[color:var(--purch-danger)]"),
+        "h-full rounded-full bg-[color:var(--purch-muted)]",
+    )
+    return rx.el.div(
+        rx.el.div(
+            rx.el.div(
+                rx.el.span(
+                    wallet["name"],
+                    class_name=(
+                        "text-sm font-semibold text-[color:var(--purch-ink)] "
+                        "truncate"
+                    ),
+                ),
+                _type_badge(wallet["wallet_type"], wallet["accent"]),
+                class_name="flex items-center gap-2 min-w-0",
+            ),
+            rx.el.span(
+                rx.el.span("₱", wallet["balance_display"]),
+                class_name=rx.match(
+                    wallet["group"],
+                    (
+                        "Borrowed",
+                        "font-['DM_Mono'] text-sm font-bold "
+                        "text-[color:var(--purch-danger)] shrink-0",
+                    ),
+                    (
+                        "Lent",
+                        "font-['DM_Mono'] text-sm font-bold "
+                        "text-[color:var(--purch-gold)] shrink-0",
+                    ),
+                    "font-['DM_Mono'] text-sm font-bold "
+                    "text-[color:var(--purch-ink)] shrink-0",
                 ),
             ),
-            class_name=f"{CLASSES['card']} p-5 w-full",
-        )
+            class_name="flex items-center justify-between gap-3 mb-1.5",
+        ),
+        rx.el.div(
+            rx.el.div(
+                class_name=fill_class,
+                style={
+                    "width": rx.cond(
+                        wallet["pct"] > 100,
+                        "100%",
+                        f"{wallet['pct']}%",
+                    )
+                },
+            ),
+            class_name=(
+                "h-2.5 rounded-full bg-[color:var(--purch-border)] "
+                "overflow-hidden"
+            ),
+        ),
+        rx.cond(
+            wallet["note"] != "",
+            rx.el.div(
+                wallet["note"],
+                class_name=(
+                    "font-['DM_Mono'] text-[0.65rem] "
+                    "text-[color:var(--purch-muted)] mt-1 truncate"
+                ),
+            ),
+            rx.fragment(),
+        ),
+        class_name="mb-4 last:mb-0",
+    )
 
+
+def _group_block(
+    label: str,
+    subtitle: str,
+    total_display: rx.Var,
+    insight: rx.Var,
+    bars: rx.Var,
+    has_bars: rx.Var,
+    tone: str,
+) -> rx.Component:
+    amount_class = "font-['DM_Mono'] text-lg font-bold " + {
+        "teal": "text-[color:var(--purch-teal)]",
+        "gold": "text-[color:var(--purch-gold)]",
+        "danger": "text-[color:var(--purch-danger)]",
+    }.get(tone, "text-[color:var(--purch-ink)]")
     return rx.el.div(
-        tile("Available", WalletState.assets_display, "coral"),
-        tile("Owed / lent out", WalletState.liabilities_display, "danger"),
-        tile("Net position", WalletState.net_display, "gold"),
-        class_name="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full",
+        rx.el.div(
+            rx.el.div(
+                rx.el.h3(
+                    label,
+                    class_name=(
+                        "font-['Playfair_Display'] font-bold text-base "
+                        "text-[color:var(--purch-ink)] m-0"
+                    ),
+                ),
+                rx.el.p(
+                    subtitle,
+                    class_name=f"{CLASSES['eyebrow']} mt-0.5 m-0",
+                ),
+                class_name="flex-1 min-w-0",
+            ),
+            rx.el.span(
+                rx.el.span("₱", total_display),
+                class_name=amount_class,
+            ),
+            class_name="flex items-start justify-between gap-3",
+        ),
+        rx.el.p(
+            insight,
+            class_name=(
+                "text-xs text-[color:var(--purch-muted)] mt-1.5 mb-3 "
+                "leading-relaxed m-0"
+            ),
+        ),
+        rx.cond(
+            has_bars,
+            rx.el.div(rx.foreach(bars, _group_bar)),
+            rx.fragment(),
+        ),
+        class_name=(
+            "rounded-xl border border-[color:var(--purch-border)] "
+            "bg-[color:var(--purch-parchment)] p-4 w-full"
+        ),
+    )
+
+
+def wallet_analytics() -> rx.Component:
+    """Grouped wallet analytics: Debit, Lent, and Borrowed, each with its
+    own total, insight line, and per-wallet share bars."""
+    return rx.el.section(
+        rx.el.div(
+            rx.el.div(
+                rx.el.div("Wallet analytics", class_name=CLASSES["eyebrow"]),
+                rx.el.h2(
+                    "Where your money sits",
+                    class_name=(
+                        "font-['Playfair_Display'] font-bold text-xl "
+                        "sm:text-2xl text-[color:var(--purch-ink)] mt-1"
+                    ),
+                ),
+                class_name="flex-1 min-w-0",
+            ),
+            rx.el.span(
+                rx.el.span(WalletState.wallets.length().to_string()),
+                " active wallet(s)",
+                class_name=(
+                    "font-['DM_Mono'] text-[0.65rem] "
+                    "text-[color:var(--purch-muted)]"
+                ),
+            ),
+            class_name="flex items-end justify-between gap-3 mb-4",
+        ),
+        rx.el.div(
+            _group_block(
+                "Debit",
+                "Bank · Cash · Savings",
+                WalletState.debit_total_display,
+                WalletState.debit_insight,
+                WalletState.debit_bars,
+                WalletState.has_debit_wallets,
+                "teal",
+            ),
+            _group_block(
+                "Lent",
+                "Money you're waiting on",
+                WalletState.lent_total_display,
+                WalletState.lent_insight,
+                WalletState.lent_bars,
+                WalletState.has_lent_wallets,
+                "gold",
+            ),
+            _group_block(
+                "Borrowed",
+                "Debt · Loan",
+                WalletState.borrowed_total_display,
+                WalletState.borrowed_insight,
+                WalletState.borrowed_bars,
+                WalletState.has_borrowed_wallets,
+                "danger",
+            ),
+            class_name="grid grid-cols-1 lg:grid-cols-3 gap-3",
+        ),
+        class_name=f"{CLASSES['card']} p-6 mt-6",
+    )
+
+
+_DANGER_BUTTON = (
+    "inline-flex items-center justify-center gap-2 rounded-xl "
+    "bg-[color:var(--purch-danger)] hover:bg-[color:var(--purch-coral)] "
+    "text-white font-semibold px-3 py-1.5 text-xs transition-colors "
+    "disabled:opacity-60 disabled:cursor-not-allowed"
+)
+
+
+def _delete_confirm(wallet: WalletRow) -> rx.Component:
+    """Secondary confirmation, revealed only for the wallet whose Delete
+    button was clicked. Nothing is removed until Confirm delete."""
+    return rx.el.div(
+        rx.el.div(
+            "Delete permanently?",
+            class_name=(
+                "font-['DM_Mono'] text-[0.6rem] uppercase tracking-[0.1em] "
+                "text-[color:var(--purch-danger)]"
+            ),
+        ),
+        rx.el.p(
+            rx.el.span("This removes \u201c"),
+            rx.el.span(
+                wallet["name"],
+                class_name="font-semibold text-[color:var(--purch-ink)]",
+            ),
+            rx.el.span(
+                "\u201d and its ledger history for good. Archive it instead "
+                "if you only want it out of the way."
+            ),
+            class_name=(
+                "text-xs text-[color:var(--purch-muted)] mt-1 mb-3 "
+                "leading-relaxed m-0"
+            ),
+        ),
+        rx.el.div(
+            rx.el.button(
+                "Cancel",
+                on_click=WalletState.cancel_delete,
+                type="button",
+                disabled=WalletState.is_deleting,
+                class_name=CLASSES["outline_button"]
+                + " text-xs py-1.5 px-3 disabled:opacity-60",
+            ),
+            rx.el.button(
+                rx.cond(
+                    WalletState.is_deleting,
+                    "Deleting\u2026",
+                    "Confirm delete",
+                ),
+                on_click=WalletState.confirm_delete,
+                type="button",
+                disabled=WalletState.is_deleting,
+                class_name=_DANGER_BUTTON,
+            ),
+            class_name="flex items-center justify-end gap-2",
+        ),
+        class_name=(
+            "mt-4 pt-3 border-t border-dashed "
+            "border-[color:var(--purch-danger)]/50"
+        ),
+    )
+
+
+def _wallet_actions(wallet: WalletRow) -> rx.Component:
+    """Default card footer — Edit / Archive stay exactly as before, with
+    Delete added as the first step of the two-step removal flow."""
+    return rx.el.div(
+        rx.el.button(
+            "Edit",
+            on_click=lambda: WalletState.open_edit(wallet["id"]),
+            type="button",
+            class_name=CLASSES["outline_button"] + " text-xs py-1.5 px-3",
+        ),
+        rx.el.div(
+            rx.el.button(
+                "Archive",
+                on_click=lambda: WalletState.archive_wallet(wallet["id"]),
+                type="button",
+                class_name=(
+                    "text-xs font-semibold text-[color:var(--purch-muted)] "
+                    "hover:text-[color:var(--purch-coral)] transition-colors"
+                ),
+            ),
+            rx.el.button(
+                "Delete",
+                on_click=lambda: WalletState.request_delete(wallet["id"]),
+                type="button",
+                class_name=(
+                    "text-xs font-semibold text-[color:var(--purch-muted)] "
+                    "hover:text-[color:var(--purch-danger)] transition-colors"
+                ),
+            ),
+            class_name="flex items-center gap-3",
+        ),
+        class_name=(
+            "flex items-center justify-between gap-2 mt-4 pt-3 "
+            "border-t border-dashed border-[color:var(--purch-border)]"
+        ),
     )
 
 
@@ -111,26 +445,10 @@ def _wallet_card(wallet: WalletRow) -> rx.Component:
             ),
             rx.fragment(),
         ),
-        rx.el.div(
-            rx.el.button(
-                "Edit",
-                on_click=lambda: WalletState.open_edit(wallet["id"]),
-                type="button",
-                class_name=CLASSES["outline_button"] + " text-xs py-1.5 px-3",
-            ),
-            rx.el.button(
-                "Archive",
-                on_click=lambda: WalletState.archive_wallet(wallet["id"]),
-                type="button",
-                class_name=(
-                    "text-xs font-semibold text-[color:var(--purch-muted)] "
-                    "hover:text-[color:var(--purch-coral)] transition-colors"
-                ),
-            ),
-            class_name=(
-                "flex items-center justify-between gap-2 mt-4 pt-3 "
-                "border-t border-dashed border-[color:var(--purch-border)]"
-            ),
+        rx.cond(
+            WalletState.pending_delete_id == wallet["id"],
+            _delete_confirm(wallet),
+            _wallet_actions(wallet),
         ),
         class_name=f"{CLASSES['card']} p-5",
     )
@@ -161,13 +479,58 @@ def _archived_card(wallet: WalletRow) -> rx.Component:
                 "font-['DM_Mono'] text-xs text-[color:var(--purch-muted)] mr-3"
             ),
         ),
-        rx.el.button(
-            "Restore",
-            on_click=lambda: WalletState.restore_wallet(wallet["id"]),
-            type="button",
-            class_name=(
-                "text-xs font-semibold text-[color:var(--purch-coral)] "
-                "hover:text-[color:var(--purch-coral-light)] transition-colors"
+        rx.cond(
+            WalletState.pending_delete_id == wallet["id"],
+            rx.el.div(
+                rx.el.span(
+                    "Delete permanently?",
+                    class_name=(
+                        "font-['DM_Mono'] text-[0.6rem] uppercase "
+                        "tracking-[0.1em] text-[color:var(--purch-danger)]"
+                    ),
+                ),
+                rx.el.button(
+                    "Cancel",
+                    on_click=WalletState.cancel_delete,
+                    type="button",
+                    disabled=WalletState.is_deleting,
+                    class_name=CLASSES["outline_button"]
+                    + " text-xs py-1 px-2.5 disabled:opacity-60",
+                ),
+                rx.el.button(
+                    rx.cond(
+                        WalletState.is_deleting,
+                        "Deleting\u2026",
+                        "Confirm delete",
+                    ),
+                    on_click=WalletState.confirm_delete,
+                    type="button",
+                    disabled=WalletState.is_deleting,
+                    class_name=_DANGER_BUTTON + " py-1 px-2.5",
+                ),
+                class_name="flex flex-wrap items-center justify-end gap-2",
+            ),
+            rx.el.div(
+                rx.el.button(
+                    "Restore",
+                    on_click=lambda: WalletState.restore_wallet(wallet["id"]),
+                    type="button",
+                    class_name=(
+                        "text-xs font-semibold text-[color:var(--purch-coral)] "
+                        "hover:text-[color:var(--purch-coral-light)] "
+                        "transition-colors"
+                    ),
+                ),
+                rx.el.button(
+                    "Delete",
+                    on_click=lambda: WalletState.request_delete(wallet["id"]),
+                    type="button",
+                    class_name=(
+                        "text-xs font-semibold text-[color:var(--purch-muted)] "
+                        "hover:text-[color:var(--purch-danger)] transition-colors"
+                    ),
+                ),
+                class_name="flex items-center gap-3",
             ),
         ),
         class_name=(

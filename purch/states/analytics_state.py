@@ -29,7 +29,7 @@ import reflex as rx
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from purch import backend, wallet_backend
+from purch import backend
 from purch.time_utils import (
     format_stored_timestamp,
     month_label,
@@ -37,8 +37,14 @@ from purch.time_utils import (
     today_in_timezone,
 )
 
-_TREND_DAYS = 30
 _RECENT_LIMIT = 10
+_MIN_YEAR = 2000
+
+
+def _add_months(start: date, delta: int) -> date:
+    """Return the first day of the month `delta` months from `start`."""
+    total = (start.year * 12) + (start.month - 1) + delta
+    return date(total // 12, (total % 12) + 1, 1)
 
 
 class KpiSnapshot(TypedDict):
@@ -67,21 +73,6 @@ class BudgetStatusRow(TypedDict):
     pct: int
     remaining: float
     status: str  # "on_track" | "near" | "over"
-
-
-class WalletBar(TypedDict):
-    id: int
-    name: str
-    wallet_type: str
-    balance: float
-    balance_display: str
-    pct: int
-    accent: str
-    note: str
-    is_liability: bool
-    movement_count: int
-    movement_display: str
-    group: str
 
 
 class RecentTx(TypedDict):
@@ -153,6 +144,13 @@ class AnalyticsState(rx.State):
     unavailable: bool = False  # true when Postgres backend isn't wired up
     unauthenticated: bool = False  # true when no identity is active
 
+    # Selected month (0/0 means "follow the current calendar month").
+    # Every query below is scoped to this month, so browsing back in time
+    # re-reads KPIs, categories, budgets, trend, and recent activity.
+    selected_year: int = 0
+    selected_month: int = 0
+    is_past_month: bool = False
+
     # Headline KPIs
     month_spent: float = 0.0
     month_tx_count: int = 0
@@ -169,30 +167,6 @@ class AnalyticsState(rx.State):
     trend_peak: float = 0.0
     budget_status: list[BudgetStatusRow] = []
     recent_transactions: list[RecentTx] = []
-
-    # Wallet / bank status
-    wallet_bars: list[WalletBar] = []
-    wallets_unavailable: bool = False
-    wallet_assets: float = 0.0
-    wallet_liabilities: float = 0.0
-    wallet_net: float = 0.0
-    wallet_assets_display: str = "0.00"
-    wallet_liabilities_display: str = "0.00"
-    wallet_net_display: str = "0.00"
-    wallet_peak: float = 0.0
-
-    # Grouped wallet views: Debit (Bank/Cash/Savings), Lent, Borrowed
-    # (Debt/Loan). Split into separate lists so the UI can render each
-    # group with its own heading + insight without nested foreach.
-    debit_bars: list[WalletBar] = []
-    lent_bars: list[WalletBar] = []
-    borrowed_bars: list[WalletBar] = []
-    debit_total_display: str = "0.00"
-    lent_total_display: str = "0.00"
-    borrowed_total_display: str = "0.00"
-    debit_insight: str = ""
-    lent_insight: str = ""
-    borrowed_insight: str = ""
 
     month_label: str = ""
     last_refreshed: str = ""
@@ -221,25 +195,30 @@ class AnalyticsState(rx.State):
     def has_recent(self) -> bool:
         return len(self.recent_transactions) > 0
 
-    @rx.var
-    def has_wallets(self) -> bool:
-        return len(self.wallet_bars) > 0
+    def _resolved_month(self) -> date:
+        """First day of the month currently being viewed."""
+        if self.selected_year and self.selected_month:
+            try:
+                return date(self.selected_year, self.selected_month, 1)
+            except ValueError:
+                logging.exception("Invalid selected month; using current")
+        return today_in_timezone(self.timezone_name).replace(day=1)
 
     @rx.var
-    def has_wallet_liabilities(self) -> bool:
-        return self.wallet_liabilities > 0
+    def is_current_month(self) -> bool:
+        today = today_in_timezone(self.timezone_name)
+        start = self._resolved_month()
+        return start.year == today.year and start.month == today.month
 
     @rx.var
-    def has_debit_wallets(self) -> bool:
-        return len(self.debit_bars) > 0
+    def selected_month_display(self) -> str:
+        """Always-available label for the header control (even before the
+        first query resolves)."""
+        return month_label(self._resolved_month(), self.timezone_name)
 
     @rx.var
-    def has_lent_wallets(self) -> bool:
-        return len(self.lent_bars) > 0
-
-    @rx.var
-    def has_borrowed_wallets(self) -> bool:
-        return len(self.borrowed_bars) > 0
+    def can_go_back(self) -> bool:
+        return self._resolved_month().year > _MIN_YEAR
 
     async def _resolve_user(self) -> str:
         """Return the signed-in user id or an empty string. No anonymous
@@ -261,6 +240,38 @@ class AnalyticsState(rx.State):
     @rx.event
     def set_timezone(self, timezone_name: str):
         self.timezone_name = timezone_name.strip()
+
+    @rx.event
+    def shift_month(self, delta: int):
+        """Step the selected month backwards/forwards. Never moves past the
+        current calendar month (there's nothing to show in the future)."""
+        today = today_in_timezone(self.timezone_name)
+        current = today.replace(day=1)
+        target = _add_months(self._resolved_month(), int(delta))
+        if target > current:
+            target = current
+        if target.year < _MIN_YEAR:
+            return
+        if (target.year, target.month) == (
+            self.selected_year,
+            self.selected_month,
+        ):
+            return
+        self.selected_year = target.year
+        self.selected_month = target.month
+        yield AnalyticsState.refresh
+
+    @rx.event
+    def reset_to_current_month(self):
+        today = today_in_timezone(self.timezone_name)
+        if (today.year, today.month) == (
+            self.selected_year,
+            self.selected_month,
+        ):
+            return
+        self.selected_year = today.year
+        self.selected_month = today.month
+        yield AnalyticsState.refresh
 
     @rx.event
     async def on_load(self):
@@ -335,22 +346,33 @@ class AnalyticsState(rx.State):
             self.budget_spent_total = 0.0
             self.budget_remaining_total = 0.0
             self.trend_peak = 0.0
-            self.wallet_bars = []
-            self.wallet_assets = 0.0
-            self.wallet_liabilities = 0.0
-            self.wallet_net = 0.0
-            self.wallet_assets_display = "0.00"
-            self.wallet_liabilities_display = "0.00"
-            self.wallet_net_display = "0.00"
-            self._build_wallet_groups([])
             self._refresh_in_flight = False
             return
 
         self.unauthenticated = False
         try:
             today = today_in_timezone(self.timezone_name)
-            month_start = today.replace(day=1)
-            trend_start = today - timedelta(days=_TREND_DAYS - 1)
+            current_month = today.replace(day=1)
+            month_start = self._resolved_month()
+            if month_start > current_month:
+                month_start = current_month
+            month_end = _add_months(month_start, 1)
+            # Keep the selection explicit so the header control and the
+            # data can never drift apart after the first load.
+            self.selected_year = month_start.year
+            self.selected_month = month_start.month
+            # For the current month the trend stops at today; for a past
+            # month it covers the whole month.
+            trend_end = (
+                today
+                if month_start == current_month
+                else month_end - timedelta(days=1)
+            )
+            window = {
+                "uid": user_id,
+                "month_start": month_start.isoformat(),
+                "month_end": month_end.isoformat(),
+            }
 
             with engine.connect() as conn:
                 kpi_row = conn.execute(
@@ -359,9 +381,10 @@ class AnalyticsState(rx.State):
                         "COALESCE(SUM(amount), 0) AS total "
                         "FROM transactions "
                         "WHERE user_id = :uid "
-                        "AND tx_timestamp >= (:month_start)::timestamp"
+                        "AND tx_timestamp >= (:month_start)::timestamp "
+                        "AND tx_timestamp < (:month_end)::timestamp"
                     ),
-                    {"uid": user_id, "month_start": month_start.isoformat()},
+                    window,
                 ).first()
 
                 cat_rows = conn.execute(
@@ -370,9 +393,10 @@ class AnalyticsState(rx.State):
                         "COUNT(*) AS cnt FROM transactions "
                         "WHERE user_id = :uid "
                         "AND tx_timestamp >= (:month_start)::timestamp "
+                        "AND tx_timestamp < (:month_end)::timestamp "
                         "GROUP BY category ORDER BY total DESC"
                     ),
-                    {"uid": user_id, "month_start": month_start.isoformat()},
+                    window,
                 ).all()
 
                 trend_rows = conn.execute(
@@ -381,11 +405,12 @@ class AnalyticsState(rx.State):
                         "COALESCE(SUM(amount), 0) AS total, "
                         "COUNT(*) AS cnt FROM transactions "
                         "WHERE user_id = :uid "
-                        "AND tx_timestamp >= (:trend_start)::timestamp "
+                        "AND tx_timestamp >= (:month_start)::timestamp "
+                        "AND tx_timestamp < (:month_end)::timestamp "
                         "GROUP BY CAST(tx_timestamp AS DATE) "
                         "ORDER BY day"
                     ),
-                    {"uid": user_id, "trend_start": trend_start.isoformat()},
+                    window,
                 ).all()
 
                 budget_rows = conn.execute(
@@ -397,20 +422,23 @@ class AnalyticsState(rx.State):
                         "ON t.user_id = b.user_id "
                         "AND t.category = b.category "
                         "AND t.tx_timestamp >= (:month_start)::timestamp "
+                        "AND t.tx_timestamp < (:month_end)::timestamp "
                         "WHERE b.user_id = :uid AND b.period = 'monthly' "
                         "GROUP BY b.category, b.limit_amount "
                         "ORDER BY b.category"
                     ),
-                    {"uid": user_id, "month_start": month_start.isoformat()},
+                    window,
                 ).all()
 
                 recent_rows = conn.execute(
                     text(
                         "SELECT item, amount, category, tx_timestamp "
                         "FROM transactions WHERE user_id = :uid "
+                        "AND tx_timestamp >= (:month_start)::timestamp "
+                        "AND tx_timestamp < (:month_end)::timestamp "
                         "ORDER BY tx_timestamp DESC LIMIT :lim"
                     ),
-                    {"uid": user_id, "lim": _RECENT_LIMIT},
+                    {**window, "lim": _RECENT_LIMIT},
                 ).all()
 
             # ---- KPIs ------------------------------------------------
@@ -495,8 +523,9 @@ class AnalyticsState(rx.State):
 
             points: list[TrendPoint] = []
             peak = 0.0
-            for i in range(_TREND_DAYS):
-                d = trend_start + timedelta(days=i)
+            span = max((trend_end - month_start).days + 1, 1)
+            for i in range(span):
+                d = month_start + timedelta(days=i)
                 iso = d.isoformat()
                 total, count = by_day.get(iso, (0.0, 0))
                 if total > peak:
@@ -527,17 +556,14 @@ class AnalyticsState(rx.State):
                 )
             self.recent_transactions = recents
 
-            # ---- Wallet / bank status -------------------------------
-            self._load_wallets(user_id)
-
             # ---- Meta -----------------------------------------------
-            self.month_label = month_label(today, self.timezone_name)
+            self.month_label = month_label(month_start, self.timezone_name)
+            self.is_past_month = month_start < current_month
             self.last_refreshed = now_display(self.timezone_name)
             self.empty = (
                 self.month_tx_count == 0
                 and not self.budget_status
                 and not self.recent_transactions
-                and not self.wallet_bars
             )
             self.has_loaded = True
         except Exception as e:
@@ -569,153 +595,3 @@ class AnalyticsState(rx.State):
                 self.refresh_status = "Showing the last saved snapshot"
             else:
                 self.refresh_status = ""
-
-    def _load_wallets(self, user_id: str) -> None:
-        """Load wallet balances (and this month's ledger movement counts)
-        for the wallet status section.
-
-        Isolated in its own try/except so a missing/unavailable wallet
-        table can never take down the rest of the spending dashboard.
-        """
-        try:
-            if not wallet_backend.available():
-                self.wallets_unavailable = True
-                self.wallet_bars = []
-                self._build_wallet_groups([])
-                return
-            wallets = wallet_backend.list_wallets(user_id)
-        except Exception as e:
-            logging.exception(f"analytics wallet read failed: {e}")
-            self.wallets_unavailable = True
-            self.wallet_bars = []
-            self._build_wallet_groups([])
-            return
-
-        self.wallets_unavailable = False
-        movements: dict[int, tuple[int, float]] = {}
-        try:
-            engine = _engine_or_none()
-            if engine is not None and wallets:
-                month_start = today_in_timezone(self.timezone_name).replace(
-                    day=1
-                )
-                with engine.connect() as conn:
-                    rows = conn.execute(
-                        text(
-                            "SELECT wallet_id, COUNT(*) AS cnt, "
-                            "COALESCE(SUM(amount_delta), 0) AS delta "
-                            "FROM wallet_ledger "
-                            "WHERE user_id = :uid "
-                            "AND created_at >= (:som)::timestamp "
-                            "GROUP BY wallet_id"
-                        ),
-                        {"uid": user_id, "som": month_start.isoformat()},
-                    ).all()
-                for r in rows:
-                    movements[int(r[0])] = (_to_int(r[1]), _to_float(r[2]))
-        except Exception as e:
-            logging.exception(f"wallet ledger movement read failed: {e}")
-            movements = {}
-
-        totals = wallet_backend.summary(wallets)
-        peak = max((abs(float(w["balance"])) for w in wallets), default=0.0)
-        bars: list[WalletBar] = []
-        for w in wallets:
-            balance = float(w["balance"])
-            count, delta = movements.get(int(w["id"]), (0, 0.0))
-            pct = (
-                int(min(round((abs(balance) / peak) * 100), 100)) if peak else 0
-            )
-            sign = "-" if delta < 0 else "+"
-            bars.append(
-                WalletBar(
-                    id=int(w["id"]),
-                    name=str(w["name"]),
-                    wallet_type=str(w["wallet_type"]),
-                    balance=round(balance, 2),
-                    balance_display=wallet_backend.money(balance),
-                    pct=pct,
-                    accent=wallet_backend.TYPE_ACCENT.get(
-                        w["wallet_type"], "muted"
-                    ),
-                    note=str(w.get("note") or ""),
-                    is_liability=str(w["wallet_type"]) in ("Debt", "Loan"),
-                    movement_count=count,
-                    movement_display=(
-                        f"{sign}\u20b1{wallet_backend.money(abs(delta))}"
-                        if count
-                        else "No movement this month"
-                    ),
-                    group=wallet_backend.group_for(w["wallet_type"]),
-                )
-            )
-        self.wallet_bars = bars
-        self._build_wallet_groups(bars)
-        self.wallet_peak = peak
-        self.wallet_assets = totals["assets"]
-        self.wallet_liabilities = totals["liabilities"]
-        self.wallet_net = totals["net"]
-        self.wallet_assets_display = wallet_backend.money(totals["assets"])
-        self.wallet_liabilities_display = wallet_backend.money(
-            totals["liabilities"]
-        )
-        self.wallet_net_display = wallet_backend.money(totals["net"])
-
-    def _build_wallet_groups(self, bars: list[WalletBar]) -> None:
-        """Split wallets into Debit / Lent / Borrowed and write a short,
-        human balance insight for each group."""
-        debit = [b for b in bars if b["group"] == "Debit"]
-        lent = [b for b in bars if b["group"] == "Lent"]
-        borrowed = [b for b in bars if b["group"] == "Borrowed"]
-
-        self.debit_bars = debit
-        self.lent_bars = lent
-        self.borrowed_bars = borrowed
-
-        debit_total = sum(b["balance"] for b in debit)
-        lent_total = sum(b["balance"] for b in lent)
-        borrowed_total = sum(b["balance"] for b in borrowed)
-
-        self.debit_total_display = wallet_backend.money(debit_total)
-        self.lent_total_display = wallet_backend.money(lent_total)
-        self.borrowed_total_display = wallet_backend.money(borrowed_total)
-
-        if not debit:
-            self.debit_insight = (
-                "No cash, bank, or savings wallets yet — add one to track "
-                "what you can spend."
-            )
-        else:
-            top = max(debit, key=lambda b: b["balance"])
-            share = (
-                int(round((top["balance"] / debit_total) * 100))
-                if debit_total
-                else 0
-            )
-            self.debit_insight = (
-                f"{len(debit)} wallet(s) holding ₱"
-                f"{wallet_backend.money(debit_total)} — "
-                f"{top['name']} carries {share}% of it."
-            )
-
-        if not lent:
-            self.lent_insight = "Nothing lent out right now."
-        else:
-            self.lent_insight = (
-                f"₱{wallet_backend.money(lent_total)} is out with "
-                f"{len(lent)} wallet(s) — money you still expect back."
-            )
-
-        if not borrowed:
-            self.borrowed_insight = "No debts or loans tracked — you're clear."
-        else:
-            cover = (
-                int(round((debit_total / borrowed_total) * 100))
-                if borrowed_total
-                else 0
-            )
-            self.borrowed_insight = (
-                f"₱{wallet_backend.money(borrowed_total)} owed across "
-                f"{len(borrowed)} wallet(s) — your debit wallets cover "
-                f"{cover}% of it."
-            )

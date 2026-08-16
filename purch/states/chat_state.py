@@ -25,7 +25,7 @@ from typing import TypedDict
 
 import reflex as rx
 
-from purch import backend, wallet_backend
+from purch import backend, wallet_backend, wallet_intent
 from purch.errors import safe_banner_message, safe_error_message
 from purch.states.sidebar_state import SidebarState
 from purch.time_utils import now_display
@@ -46,9 +46,14 @@ class ChatMessage(TypedDict):
     alert: str  # "" | "warning" | "danger"
 
 
+# Default suggestions shown in the empty chat state. They deliberately
+# include a wallet name so it's obvious a purchase can name its wallet,
+# plus the borrowed / lent wordings that now persist to a wallet.
 PROMPT_CHIPS: list[str] = [
-    "milk tea ₱85",
-    "grab ride 240",
+    "milk tea 85 gcash",
+    "grab ride 240 cash",
+    "borrowed 250 from Aivann",
+    "lent 300 to Maria",
     "how much this week?",
     "set food budget to 3000",
 ]
@@ -62,6 +67,9 @@ class ChatState(rx.State):
     messages: list[ChatMessage] = []
     draft: str = ""
     draft_version: int = 0
+    # Suggestion chips for the empty state — rebuilt on load and after a
+    # clear so they reference the user's real wallet nicknames.
+    prompt_chips: list[str] = PROMPT_CHIPS.copy()
 
     is_sending: bool = False
     error_text: str = ""
@@ -153,6 +161,7 @@ class ChatState(rx.State):
             backend.ensure_user(user_id)
         except Exception as e:
             logging.exception(f"Chat on_load failed: {e}")
+        yield ChatState.refresh_prompt_chips
 
     async def _user_id(self) -> str:
         """Resolve the current user id from AuthState. Returns an empty
@@ -224,7 +233,7 @@ class ChatState(rx.State):
         self.confirm_clear = False
 
     @rx.event
-    def confirm_clear_chat(self):
+    async def confirm_clear_chat(self):
         self.messages = []
         self.confirm_clear = False
         self.error_text = ""
@@ -235,6 +244,49 @@ class ChatState(rx.State):
         self.awaiting_wallet = False
         self.draft = ""
         self.draft_version += 1
+        yield ChatState.refresh_prompt_chips
+
+    # ------------------------------------------------------------------ #
+    # Prompt suggestions
+    # ------------------------------------------------------------------ #
+
+    def _build_prompt_chips(self, wallets: list[dict]) -> list[str]:
+        """Suggestions that name the user's own wallets when we have them,
+        so the required wallet step is obvious from the first message."""
+        names = [
+            str(w["name"])
+            for w in wallet_backend.consumable_wallets(wallets)
+            if str(w["name"]).strip()
+        ]
+        chips: list[str] = []
+        if names:
+            first = names[0]
+            second = names[1] if len(names) > 1 else first
+            chips.append(f"milk tea 85 {first}")
+            chips.append(f"grab ride 240 {second}")
+            chips.append(f"how much is left in {first}?")
+        else:
+            chips.append("milk tea 85 gcash")
+            chips.append("grab ride 240 cash")
+            chips.append("how much this week?")
+        chips.append("borrowed 250 from Aivann")
+        chips.append("lent 300 to Maria")
+        chips.append("set food budget to 3000")
+        return chips
+
+    @rx.event
+    async def refresh_prompt_chips(self):
+        """Rebuild the empty-state suggestions from the user's wallets."""
+        try:
+            user_id = await self._user_id()
+            if not user_id:
+                self.prompt_chips = list(PROMPT_CHIPS)
+                return
+            wallets = await asyncio.to_thread(self._wallet_rows, user_id)
+            self.prompt_chips = self._build_prompt_chips(wallets)
+        except Exception as e:
+            logging.exception(f"prompt chip refresh failed: {e}")
+            self.prompt_chips = list(PROMPT_CHIPS)
 
     # ------------------------------------------------------------------ #
     # Wallet helpers
@@ -329,6 +381,107 @@ class ChatState(rx.State):
             "Here's where your money sits:\n"
             + "\n".join(lines)
             + f"\n\nSpendable total: ₱{wallet_backend.money(totals['assets'])}"
+        )
+
+    def _debt_intent_reply(self, user_id: str, prompt: str) -> str:
+        """Handle borrowed / lent messages BEFORE the generic transaction
+        extractor so a debt is never mislogged as spending.
+
+        Creates the named Borrowed (`Debt`) / `Lent` wallet when it's new,
+        adds to it when it already exists, and writes a ledger entry each
+        time. Returns "" when the message isn't a debt/lent message.
+        """
+        if self.pending_conversion or self.pending_edit:
+            return ""
+
+        parsed = wallet_intent.parse_debt_message(prompt)
+        if parsed is None:
+            return ""
+
+        direction = str(parsed["direction"])
+        amount = float(parsed["amount"] or 0)
+        person = str(parsed["person"] or "")
+
+        # Fall back to the LLM only when the cheap parse left a gap.
+        if not person or amount <= 0:
+            try:
+                from purch import wallet_llm
+
+                details = wallet_llm.extract_debt_details(prompt)
+            except Exception as e:
+                logging.exception(f"debt detail fallback failed: {e}")
+                details = {}
+            if details.get("is_debt_message"):
+                if not person:
+                    person = str(details.get("person") or "")
+                if amount <= 0:
+                    amount = float(details.get("amount") or 0)
+                llm_direction = str(details.get("direction") or "none")
+                if llm_direction in ("borrowed", "lent"):
+                    direction = llm_direction
+
+        label = wallet_intent.label_for(direction)
+        if amount <= 0:
+            who = (
+                f" from {person}"
+                if direction == "borrowed" and person
+                else (f" to {person}" if person else "")
+            )
+            example = person or (
+                "Aivann" if direction == "borrowed" else "Maria"
+            )
+            preposition = "from" if direction == "borrowed" else "to"
+            return (
+                f"How much did you {label.lower()}{who}? Say something like "
+                f"'{label.lower()} 250 {preposition} {example}' and I'll "
+                "track it in a wallet for you."
+            )
+
+        if not wallet_backend.available():
+            return (
+                "I couldn't reach your wallets just now, so I didn't record "
+                "that. Please try again in a moment."
+            )
+
+        wallet_type = wallet_intent.wallet_type_for(direction)
+        wallet_name = person or wallet_intent.default_name_for(direction)
+        description = wallet_intent.ledger_description(direction, person)
+
+        try:
+            wallet = wallet_backend.upsert_debt_wallet(
+                user_id,
+                wallet_name,
+                wallet_type,
+                amount,
+                description,
+            )
+        except Exception as e:
+            logging.exception(f"debt wallet upsert failed: {e}")
+            wallet = None
+
+        if wallet is None:
+            return (
+                f"I couldn't save that {label.lower()} amount to a wallet "
+                "just now. Please try again in a moment."
+            )
+
+        balance = wallet_backend.money(wallet["balance"])
+        moved = wallet_backend.money(amount)
+        created_note = (
+            f" I created a new {label} wallet for it."
+            if wallet.get("created")
+            else ""
+        )
+        if direction == "lent":
+            who = f" to {person}" if person else ""
+            return (
+                f"🤝 Lent ₱{moved}{who} — tracked in your “{wallet['name']}” "
+                f"Lent wallet.{created_note} They now owe you ₱{balance}."
+            )
+        who = f" from {person}" if person else ""
+        return (
+            f"🧾 Borrowed ₱{moved}{who} — tracked in your “{wallet['name']}” "
+            f"Borrowed wallet.{created_note} Outstanding: ₱{balance}."
         )
 
     def _wallet_choice_payload(self, wallets: list[dict]) -> list[WalletChoice]:
@@ -627,18 +780,30 @@ class ChatState(rx.State):
                 self.error_text = safe_banner_message(credentials_error)
                 fatal_error = True
             else:
+                # Borrowed / lent intent runs FIRST so debts are persisted
+                # to a wallet instead of being mislogged as spending by
+                # the generic transaction extractor.
+                debt_answer = await asyncio.to_thread(
+                    self._debt_intent_reply, user_id, prompt
+                )
                 # Wallet balance / allowance question — answered directly
                 # from the wallet tables, no agent round-trip needed.
-                wallet_answer = await asyncio.to_thread(
-                    self._wallet_query_reply, user_id, prompt
+                wallet_answer = (
+                    ""
+                    if debt_answer
+                    else await asyncio.to_thread(
+                        self._wallet_query_reply, user_id, prompt
+                    )
                 )
                 # Pending-conversion path (numeric PHP reply after a USD extract).
                 conv_reply = (
                     None
-                    if wallet_answer
+                    if (debt_answer or wallet_answer)
                     else self._handle_pending_conversion(prompt, user_id)
                 )
-                if wallet_answer:
+                if debt_answer:
+                    response_text = debt_answer
+                elif wallet_answer:
                     response_text = wallet_answer
                 elif conv_reply is not None:
                     response_text, meta, fatal_error = conv_reply
@@ -739,3 +904,4 @@ class ChatState(rx.State):
         if fatal_error:
             return
         yield SidebarState.refresh
+        yield ChatState.refresh_prompt_chips

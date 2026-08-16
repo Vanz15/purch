@@ -95,14 +95,11 @@ class AuthState(rx.State):
 
     @rx.var
     def display_name(self) -> str:
-        if self.user_name:
-            return self.user_name
-        if self.user_email and "@" in self.user_email:
-            local = self.user_email.split("@", 1)[0]
-            if local.startswith("guest-"):
-                return "Guest"
-            return local
-        return "Guest"
+        return self.user_name or (
+            self.user_email.split("@", 1)[0]
+            if self.user_email and "@" in self.user_email
+            else "Guest"
+        )
 
     @rx.var
     def is_guest(self) -> bool:
@@ -122,9 +119,11 @@ class AuthState(rx.State):
 
     @rx.var
     def submit_label(self) -> str:
-        if self.is_busy:
-            return "Please wait\u2026"
-        return "Create account" if self.mode == "signup" else "Sign in"
+        return (
+            "Please wait…"
+            if self.is_busy
+            else ("Create account" if self.mode == "signup" else "Sign in")
+        )
 
     @rx.var
     def toggle_prompt(self) -> str:

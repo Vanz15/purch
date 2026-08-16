@@ -79,7 +79,7 @@ TYPE_ACCENT: dict[str, str] = {
 }
 
 _sqlite_engine: Engine | None = None
-_available_cache: Optional[bool] = None
+_available_cache: bool | None = None
 
 
 def _engine() -> Engine | None:
@@ -126,7 +126,7 @@ def available() -> bool:
     return _available_cache
 
 
-def _to_float(v: Any) -> float:
+def _to_float(v: object) -> float:
     if v is None:
         return 0.0
     try:
@@ -140,7 +140,7 @@ def money(value: float) -> str:
     return f"{value:,.2f}"
 
 
-def _row_to_wallet(r: Any) -> dict[str, Any]:
+def _row_to_wallet(r: object) -> dict[str, str | int | float | bool]:
     return {
         "id": int(r[0]),
         "name": str(r[1] or ""),
@@ -316,6 +316,160 @@ def update_wallet(
                     "ts": now,
                 },
             )
+
+
+def upsert_debt_wallet(
+    user_id: str,
+    name: str,
+    wallet_type: str,
+    amount: float,
+    description: str = "",
+) -> dict | None:
+    """Create-or-increase a named Borrowed (`Debt`) / `Lent` wallet.
+
+    Used by the chat debt/lent intent so "borrowed 250 from Aivann"
+    actually persists: if a wallet nicknamed "Aivann" exists we add the
+    amount to its balance (and un-archive it), otherwise we create it
+    under the right type. Either way a ledger entry is written so the
+    movement is auditable.
+
+    Returns the wallet dict with an extra `created` flag, or None when
+    the wallet tables aren't reachable.
+    """
+    amount = round(abs(float(amount or 0.0)), 2)
+    if amount <= 0:
+        return None
+    if wallet_type not in WALLET_TYPES:
+        wallet_type = "Other"
+    engine = _engine()
+    if engine is None or not user_id:
+        return None
+
+    clean_name = (name or "").strip()[:40] or (
+        "Lent" if wallet_type == "Lent" else "Borrowed"
+    )
+    now = datetime.utcnow()
+    created = False
+    with engine.begin() as conn:
+        existing = conn.execute(
+            text(
+                "SELECT id, balance, wallet_type FROM wallets "
+                "WHERE user_id = :uid AND LOWER(name) = :name"
+            ),
+            {"uid": user_id, "name": clean_name.lower()},
+        ).first()
+
+        if existing is None:
+            created = True
+            row = conn.execute(
+                text(
+                    "INSERT INTO wallets "
+                    "(user_id, name, wallet_type, balance, starting_balance, "
+                    "note, is_archived, created_at, updated_at) VALUES "
+                    "(:uid, :name, :wtype, :bal, :bal, :note, :arch, :ts, :ts) "
+                    "RETURNING id"
+                ),
+                {
+                    "uid": user_id,
+                    "name": clean_name,
+                    "wtype": wallet_type,
+                    "bal": amount,
+                    "note": (description or "").strip()[:120] or None,
+                    "arch": False,
+                    "ts": now,
+                },
+            ).first()
+            if row is None:
+                return None
+            wallet_id = int(row[0])
+            entry_type = "initial"
+        else:
+            wallet_id = int(existing[0])
+            current_type = str(existing[2] or "Other")
+            # Keep the existing type when it already belongs to the same
+            # analytics group; otherwise realign it with the intent.
+            new_type = (
+                current_type
+                if group_for(current_type) == group_for(wallet_type)
+                else wallet_type
+            )
+            conn.execute(
+                text(
+                    "UPDATE wallets SET balance = balance + :amt, "
+                    "wallet_type = :wtype, is_archived = :arch, "
+                    "updated_at = :ts WHERE id = :id AND user_id = :uid"
+                ),
+                {
+                    "amt": amount,
+                    "wtype": new_type,
+                    "arch": False,
+                    "ts": now,
+                    "id": wallet_id,
+                    "uid": user_id,
+                },
+            )
+            entry_type = "manual_adjustment"
+
+        conn.execute(
+            text(
+                "INSERT INTO wallet_ledger "
+                "(wallet_id, user_id, transaction_id, amount_delta, "
+                "entry_type, description, created_at) VALUES "
+                "(:wid, :uid, NULL, :delta, :etype, :desc, :ts)"
+            ),
+            {
+                "wid": wallet_id,
+                "uid": user_id,
+                "delta": amount,
+                "etype": entry_type,
+                "desc": (description or "Wallet movement")[:180],
+                "ts": now,
+            },
+        )
+
+    wallet = get_wallet(user_id, wallet_id)
+    if wallet is None:
+        return None
+    wallet["created"] = created
+    return wallet
+
+
+def delete_wallet(user_id: str, wallet_id: int) -> str | None:
+    """Permanently remove a wallet and its ledger entries.
+
+    Scoped to the owning user: both the ledger cleanup and the wallet row
+    delete are filtered by `user_id`, so one account can never delete
+    another's wallet. Ledger rows go first so the foreign key from
+    `wallet_ledger.wallet_id` is never left dangling. Both statements run
+    inside a single transaction, so a failure leaves the wallet intact.
+
+    Returns the deleted wallet's nickname, or None when nothing matched.
+    """
+    engine = _engine()
+    if engine is None:
+        raise RuntimeError("Wallet storage is unavailable.")
+    if not user_id or not wallet_id:
+        return None
+    with engine.begin() as conn:
+        owned = conn.execute(
+            text("SELECT name FROM wallets WHERE id = :id AND user_id = :uid"),
+            {"id": int(wallet_id), "uid": user_id},
+        ).first()
+        if owned is None:
+            return None
+        name = str(owned[0] or "")
+        conn.execute(
+            text(
+                "DELETE FROM wallet_ledger "
+                "WHERE wallet_id = :id AND user_id = :uid"
+            ),
+            {"id": int(wallet_id), "uid": user_id},
+        )
+        conn.execute(
+            text("DELETE FROM wallets WHERE id = :id AND user_id = :uid"),
+            {"id": int(wallet_id), "uid": user_id},
+        )
+    return name
 
 
 def set_archived(user_id: str, wallet_id: int, archived: bool) -> None:
