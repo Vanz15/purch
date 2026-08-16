@@ -1,0 +1,242 @@
+{
+  "version": 4,
+  "app_title": "Wallet Tracking Plan",
+  "nav": {
+    "placement": "none",
+    "items": []
+  },
+  "pages": [
+    {
+      "id": "page-8a8493ce",
+      "name": "Chat wallet workflow",
+      "route": "/chat",
+      "item_ref": {
+        "index": 1,
+        "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+      },
+      "blocks": [
+        {
+          "id": "wallet-chat-sidebar",
+          "type": "sidebar",
+          "label": "Budget and wallet sidebar",
+          "hint": "Shows total budgets, wallet balances, tone picker, and profile without account-number fields",
+          "x": 0,
+          "y": 0,
+          "w": 3,
+          "h": 12,
+          "item_ref": {
+            "index": 1,
+            "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "wallet-chat-header",
+          "type": "header",
+          "label": "Chat header",
+          "hint": "Talk to Purch title with clear chat action aligned to message area",
+          "x": 3,
+          "y": 0,
+          "w": 9,
+          "h": 1,
+          "item_ref": {
+            "index": 1,
+            "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "wallet-chat-thread",
+          "type": "list",
+          "label": "Conversation thread",
+          "hint": "User and assistant bubbles, including wallet follow-up prompts with clickable wallet choice chips",
+          "x": 3,
+          "y": 1,
+          "w": 9,
+          "h": 8,
+          "item_ref": {
+            "index": 1,
+            "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "wallet-chat-composer",
+          "type": "form",
+          "label": "Chat composer",
+          "hint": "Natural-language purchase and wallet query entry",
+          "x": 3,
+          "y": 9,
+          "w": 9,
+          "h": 2,
+          "item_ref": {
+            "index": 1,
+            "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    },
+    {
+      "id": "page-512ae77a",
+      "name": "Wallet management",
+      "route": "/wallets",
+      "item_ref": {
+        "index": 1,
+        "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+      },
+      "blocks": [
+        {
+          "id": "wallets-sidebar",
+          "type": "sidebar",
+          "label": "App sidebar",
+          "hint": "Shared Purch navigation, budget overview, wallet summary, tone, and profile",
+          "x": 0,
+          "y": 0,
+          "w": 3,
+          "h": 12,
+          "item_ref": {
+            "index": 1,
+            "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "wallets-header",
+          "type": "header",
+          "label": "Wallet page header",
+          "hint": "Wallets title, privacy note, and add-wallet action",
+          "x": 3,
+          "y": 0,
+          "w": 9,
+          "h": 2,
+          "item_ref": {
+            "index": 1,
+            "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "wallets-form",
+          "type": "form",
+          "label": "Add wallet form",
+          "hint": "Wallet nickname, type, starting balance, optional note; no account details requested",
+          "x": 3,
+          "y": 2,
+          "w": 4,
+          "h": 5,
+          "item_ref": {
+            "index": 1,
+            "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "wallets-list",
+          "type": "list",
+          "label": "Wallet balance cards",
+          "hint": "Cash, savings, loan, debt, lent, and bank-style wallet balances with edit controls",
+          "x": 7,
+          "y": 2,
+          "w": 5,
+          "h": 7,
+          "item_ref": {
+            "index": 1,
+            "text": "Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    },
+    {
+      "id": "page-6adb58c3",
+      "name": "Analytics wallet status",
+      "route": "/analytics",
+      "item_ref": {
+        "index": 2,
+        "text": "Extend analytics and sidebar surfaces to show wallet/bank status alongside spending, preserving the Purch espresso/coral parchment visual identity."
+      },
+      "blocks": [
+        {
+          "id": "analytics-wallet-sidebar",
+          "type": "sidebar",
+          "label": "App sidebar",
+          "hint": "Shared Purch navigation and wallet summary",
+          "x": 0,
+          "y": 0,
+          "w": 3,
+          "h": 12,
+          "item_ref": {
+            "index": 2,
+            "text": "Extend analytics and sidebar surfaces to show wallet/bank status alongside spending, preserving the Purch espresso/coral parchment visual identity."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "analytics-wallet-header",
+          "type": "header",
+          "label": "Analytics header",
+          "hint": "Spending overview with refresh action",
+          "x": 3,
+          "y": 0,
+          "w": 9,
+          "h": 2,
+          "item_ref": {
+            "index": 2,
+            "text": "Extend analytics and sidebar surfaces to show wallet/bank status alongside spending, preserving the Purch espresso/coral parchment visual identity."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "analytics-wallet-kpis",
+          "type": "kpi",
+          "label": "Spending and wallet KPIs",
+          "hint": "Monthly spend, transactions, top category, total wallet balance",
+          "x": 3,
+          "y": 2,
+          "w": 9,
+          "h": 3,
+          "item_ref": {
+            "index": 2,
+            "text": "Extend analytics and sidebar surfaces to show wallet/bank status alongside spending, preserving the Purch espresso/coral parchment visual identity."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "analytics-wallet-bars",
+          "type": "chart_bar",
+          "label": "Wallet status bars",
+          "hint": "Visible bars comparing wallet balances by wallet type",
+          "x": 3,
+          "y": 5,
+          "w": 5,
+          "h": 5,
+          "item_ref": {
+            "index": 2,
+            "text": "Extend analytics and sidebar surfaces to show wallet/bank status alongside spending, preserving the Purch espresso/coral parchment visual identity."
+          },
+          "type_source": "palette"
+        },
+        {
+          "id": "analytics-wallet-list",
+          "type": "list",
+          "label": "Wallet status details",
+          "hint": "Wallet cards showing remaining balance, type, and recent linked transaction context",
+          "x": 8,
+          "y": 5,
+          "w": 4,
+          "h": 5,
+          "item_ref": {
+            "index": 2,
+            "text": "Extend analytics and sidebar surfaces to show wallet/bank status alongside spending, preserving the Purch espresso/coral parchment visual identity."
+          },
+          "type_source": "palette"
+        }
+      ],
+      "deleted_ids": []
+    }
+  ],
+  "attached_to_plan": false
+}

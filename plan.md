@@ -1,4 +1,4 @@
-## Auth And Cleanup Plan
-- [x] Authentication updates: preserve the Purch espresso/coral parchment design while preventing duplicate email account creation, showing clear email-in-use and rate-limit messages, and adding a forgot-password recovery flow on the login page.
-- [x] Project structure cleanup: remove duplicate legacy Reflex app packages and normalize deployment around the Purch package entrypoint without changing the Streamlit fallback or protected files.
-- [x] Verification: run focused auth/helper and entrypoint checks to confirm login behavior and deployment imports work after cleanup.
+## Wallet Tracking Plan
+- [ ] Set up wallet storage and privacy-safe wallet records so users can add balances for cash, bank-style buckets, debts, loans, savings, and lent money without entering account details.
+- [ ] Add wallet management and chat wallet workflows: manual wallet creation, clickable wallet choices for transaction follow-ups, automatic balance updates when a wallet is specified, and LLM-powered wallet allowance queries.
+- [ ] Extend analytics and sidebar surfaces to show wallet/bank status alongside spending, preserving the Purch espresso/coral parchment visual identity.
