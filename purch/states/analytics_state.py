@@ -81,6 +81,7 @@ class WalletBar(TypedDict):
     is_liability: bool
     movement_count: int
     movement_display: str
+    group: str
 
 
 class RecentTx(TypedDict):
@@ -180,6 +181,19 @@ class AnalyticsState(rx.State):
     wallet_net_display: str = "0.00"
     wallet_peak: float = 0.0
 
+    # Grouped wallet views: Debit (Bank/Cash/Savings), Lent, Borrowed
+    # (Debt/Loan). Split into separate lists so the UI can render each
+    # group with its own heading + insight without nested foreach.
+    debit_bars: list[WalletBar] = []
+    lent_bars: list[WalletBar] = []
+    borrowed_bars: list[WalletBar] = []
+    debit_total_display: str = "0.00"
+    lent_total_display: str = "0.00"
+    borrowed_total_display: str = "0.00"
+    debit_insight: str = ""
+    lent_insight: str = ""
+    borrowed_insight: str = ""
+
     month_label: str = ""
     last_refreshed: str = ""
     refresh_status: str = ""
@@ -214,6 +228,18 @@ class AnalyticsState(rx.State):
     @rx.var
     def has_wallet_liabilities(self) -> bool:
         return self.wallet_liabilities > 0
+
+    @rx.var
+    def has_debit_wallets(self) -> bool:
+        return len(self.debit_bars) > 0
+
+    @rx.var
+    def has_lent_wallets(self) -> bool:
+        return len(self.lent_bars) > 0
+
+    @rx.var
+    def has_borrowed_wallets(self) -> bool:
+        return len(self.borrowed_bars) > 0
 
     async def _resolve_user(self) -> str:
         """Return the signed-in user id or an empty string. No anonymous
@@ -316,6 +342,7 @@ class AnalyticsState(rx.State):
             self.wallet_assets_display = "0.00"
             self.wallet_liabilities_display = "0.00"
             self.wallet_net_display = "0.00"
+            self._build_wallet_groups([])
             self._refresh_in_flight = False
             return
 
@@ -554,12 +581,14 @@ class AnalyticsState(rx.State):
             if not wallet_backend.available():
                 self.wallets_unavailable = True
                 self.wallet_bars = []
+                self._build_wallet_groups([])
                 return
             wallets = wallet_backend.list_wallets(user_id)
         except Exception as e:
             logging.exception(f"analytics wallet read failed: {e}")
             self.wallets_unavailable = True
             self.wallet_bars = []
+            self._build_wallet_groups([])
             return
 
         self.wallets_unavailable = False
@@ -617,9 +646,11 @@ class AnalyticsState(rx.State):
                         if count
                         else "No movement this month"
                     ),
+                    group=wallet_backend.group_for(w["wallet_type"]),
                 )
             )
         self.wallet_bars = bars
+        self._build_wallet_groups(bars)
         self.wallet_peak = peak
         self.wallet_assets = totals["assets"]
         self.wallet_liabilities = totals["liabilities"]
@@ -629,3 +660,62 @@ class AnalyticsState(rx.State):
             totals["liabilities"]
         )
         self.wallet_net_display = wallet_backend.money(totals["net"])
+
+    def _build_wallet_groups(self, bars: list[WalletBar]) -> None:
+        """Split wallets into Debit / Lent / Borrowed and write a short,
+        human balance insight for each group."""
+        debit = [b for b in bars if b["group"] == "Debit"]
+        lent = [b for b in bars if b["group"] == "Lent"]
+        borrowed = [b for b in bars if b["group"] == "Borrowed"]
+
+        self.debit_bars = debit
+        self.lent_bars = lent
+        self.borrowed_bars = borrowed
+
+        debit_total = sum(b["balance"] for b in debit)
+        lent_total = sum(b["balance"] for b in lent)
+        borrowed_total = sum(b["balance"] for b in borrowed)
+
+        self.debit_total_display = wallet_backend.money(debit_total)
+        self.lent_total_display = wallet_backend.money(lent_total)
+        self.borrowed_total_display = wallet_backend.money(borrowed_total)
+
+        if not debit:
+            self.debit_insight = (
+                "No cash, bank, or savings wallets yet — add one to track "
+                "what you can spend."
+            )
+        else:
+            top = max(debit, key=lambda b: b["balance"])
+            share = (
+                int(round((top["balance"] / debit_total) * 100))
+                if debit_total
+                else 0
+            )
+            self.debit_insight = (
+                f"{len(debit)} wallet(s) holding ₱"
+                f"{wallet_backend.money(debit_total)} — "
+                f"{top['name']} carries {share}% of it."
+            )
+
+        if not lent:
+            self.lent_insight = "Nothing lent out right now."
+        else:
+            self.lent_insight = (
+                f"₱{wallet_backend.money(lent_total)} is out with "
+                f"{len(lent)} wallet(s) — money you still expect back."
+            )
+
+        if not borrowed:
+            self.borrowed_insight = "No debts or loans tracked — you're clear."
+        else:
+            cover = (
+                int(round((debit_total / borrowed_total) * 100))
+                if borrowed_total
+                else 0
+            )
+            self.borrowed_insight = (
+                f"₱{wallet_backend.money(borrowed_total)} owed across "
+                f"{len(borrowed)} wallet(s) — your debit wallets cover "
+                f"{cover}% of it."
+            )

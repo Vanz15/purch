@@ -47,6 +47,27 @@ TYPE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Other": ("other",),
 }
 
+# Only these wallet types can actually be spent from day-to-day. The
+# sidebar mini summary shows exclusively these.
+CONSUMABLE_TYPES: tuple[str, ...] = ("Cash", "Bank")
+
+ASSET_TYPES: tuple[str, ...] = ("Cash", "Bank", "Savings", "Lent", "Other")
+LIABILITY_TYPES: tuple[str, ...] = ("Debt", "Loan")
+
+# Analytics grouping — Debit (what you hold), Lent (money out), Borrowed
+# (money owed).
+WALLET_GROUPS: dict[str, tuple[str, ...]] = {
+    "Debit": ("Bank", "Cash", "Savings"),
+    "Lent": ("Lent",),
+    "Borrowed": ("Debt", "Loan"),
+}
+GROUP_ORDER: list[str] = ["Debit", "Lent", "Borrowed"]
+GROUP_ACCENT: dict[str, str] = {
+    "Debit": "teal",
+    "Lent": "gold",
+    "Borrowed": "danger",
+}
+
 TYPE_ACCENT: dict[str, str] = {
     "Cash": "teal",
     "Bank": "gold",
@@ -449,6 +470,23 @@ def detect_wallet_in_text(wallets: list[dict], message: str) -> dict | None:
                 if w["wallet_type"] == wtype:
                     return w
     return None
+
+
+def group_for(wallet_type: str) -> str:
+    """Return the analytics group a wallet type belongs to."""
+    for group, types in WALLET_GROUPS.items():
+        if wallet_type in types:
+            return group
+    return "Debit"
+
+
+def consumable_wallets(wallets: list[dict]) -> list[dict]:
+    """Wallets that can actually be spent from (Cash / Bank only)."""
+    return [w for w in wallets if w["wallet_type"] in CONSUMABLE_TYPES]
+
+
+def consumable_total(wallets: list[dict]) -> float:
+    return sum(float(w["balance"]) for w in consumable_wallets(wallets))
 
 
 def summary(wallets: list[dict]) -> dict[str, float]:

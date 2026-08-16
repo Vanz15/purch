@@ -11,8 +11,6 @@ import logging
 from datetime import date, datetime, time, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import reflex as rx
-
 PHILIPPINES_TIMEZONE = "Asia/Manila"
 
 
@@ -88,8 +86,3 @@ def format_stored_timestamp(value: object, timezone_name: str = "") -> str:
     except Exception as exc:
         logging.exception(f"Stored timestamp formatting failed: {exc}")
         return str(value)
-
-
-# Keep a Reflex reference in this utility module so it is discoverable as a
-# first-class app utility while timezone detection remains optional.
-_REFLEX_AVAILABLE = rx is not None

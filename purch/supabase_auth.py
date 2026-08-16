@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
-
 from supabase import Client, create_client
 
 
@@ -41,7 +39,7 @@ def build_google_oauth_url(redirect_to: str) -> str:
     browser to. Nothing user-provided is returned in this string — it's
     the provider's own hosted authorize endpoint."""
     client = get_client()
-    resp: Any = client.auth.sign_in_with_oauth(
+    resp = client.auth.sign_in_with_oauth(
         {
             "provider": "google",
             "options": {"redirect_to": redirect_to},
@@ -76,7 +74,7 @@ def sign_up_with_password(
       * On real success returns `{user_id, email, name}`.
     """
     client = get_client()
-    data: dict[str, Any] = {"email": email, "password": password}
+    data: dict[str, object] = {"email": email, "password": password}
     if display_name:
         data["options"] = {"data": {"display_name": display_name}}
     resp = client.auth.sign_up(data)
@@ -113,7 +111,7 @@ def send_password_reset_email(
     surface a neutral "if that email exists, we sent a link" message
     in the UI regardless."""
     client = get_client()
-    options: dict[str, Any] = {}
+    options: dict[str, str] = {}
     if redirect_to:
         options["redirect_to"] = redirect_to
     # supabase-py exposes this as `reset_password_email` in older

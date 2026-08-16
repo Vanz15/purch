@@ -99,7 +99,7 @@ def _composer() -> rx.Component:
                 placeholder='Try "milk tea ₱85" or "how much this week?"',
                 default_value=ChatState.draft,
                 key=ChatState.draft_version,
-                disabled=ChatState.is_sending,
+                disabled=ChatState.is_sending | ChatState.has_wallet_choices,
                 auto_complete="off",
                 class_name=(
                     "flex-1 rounded-xl border border-[color:var(--purch-border)] "
@@ -113,7 +113,7 @@ def _composer() -> rx.Component:
             rx.el.button(
                 rx.cond(ChatState.is_sending, "Sending…", "Send"),
                 type="submit",
-                disabled=ChatState.is_sending,
+                disabled=ChatState.is_sending | ChatState.has_wallet_choices,
                 class_name=(
                     f"{CLASSES['primary_button']} min-w-[6.5rem] text-base "
                     "disabled:opacity-60 disabled:cursor-not-allowed "
@@ -161,22 +161,16 @@ def _wallet_choice_row() -> rx.Component:
         ChatState.has_wallet_choices,
         rx.el.div(
             rx.el.div(
-                "Pick a wallet",
+                "Pick a wallet — required",
                 class_name=CLASSES["eyebrow"],
             ),
             rx.el.div(
                 rx.foreach(ChatState.wallet_choices, _wallet_chip),
                 class_name="flex flex-wrap gap-2 mt-2",
             ),
-            rx.el.button(
-                "Skip for now",
-                on_click=ChatState.skip_wallet,
-                type="button",
-                class_name=(
-                    "text-xs text-[color:var(--purch-muted)] "
-                    "hover:text-[color:var(--purch-coral)] "
-                    "transition-colors mt-3"
-                ),
+            rx.el.p(
+                "Every purchase needs a wallet so your balances stay accurate.",
+                class_name=("text-xs text-[color:var(--purch-muted)] mt-3 m-0"),
             ),
             class_name=(
                 "mt-2 p-4 rounded-xl border border-dashed "

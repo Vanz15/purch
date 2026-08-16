@@ -65,6 +65,9 @@ class ChatState(rx.State):
 
     is_sending: bool = False
     error_text: str = ""
+    # Bumped every time a new banner is raised so a stale auto-dismiss
+    # timer can never clear a newer message.
+    error_token: int = 0
     confirm_clear: bool = False
 
     # Carried across turns so multi-step flows (edit confirm, currency
@@ -78,6 +81,9 @@ class ChatState(rx.State):
     # the user to type (and possibly misspell) a wallet name.
     pending_wallet: dict[str, str | int | float] = {}
     wallet_choices: list[WalletChoice] = []
+    # Explicit latch so the "a wallet must be picked" requirement survives
+    # any re-mount, state rehydration, or partially-populated instance.
+    awaiting_wallet: bool = False
 
     # Last transaction written this turn — used for wallet linking.
     _last_tx: dict[str, str | int | float] = {}
@@ -93,7 +99,41 @@ class ChatState(rx.State):
 
     @rx.var
     def has_wallet_choices(self) -> bool:
-        return len(self.wallet_choices) > 0
+        return len(self.wallet_choices) > 0 or self.awaiting_wallet
+
+    def _pending_wallet_snapshot(self) -> dict[str, str | int | float]:
+        """Read the parked purchase defensively.
+
+        Reflex may hand us an instance where the field was seeded directly
+        (constructor kwargs, rehydration) without going through the normal
+        descriptor path, so fall back to the raw instance dict."""
+        pending = self.pending_wallet
+        if not pending:
+            raw = self.__dict__.get("pending_wallet")
+            if isinstance(raw, dict) and raw:
+                return dict(raw)
+            return {}
+        return dict(pending)
+
+    def _pending_wallet_choices(self) -> list[WalletChoice]:
+        choices = self.wallet_choices
+        if not choices:
+            raw = self.__dict__.get("wallet_choices")
+            if isinstance(raw, list) and raw:
+                return list(raw)
+            return []
+        return list(choices)
+
+    def _wallet_selection_required(self) -> bool:
+        """True while the previous purchase still needs a wallet. Checks the
+        parked purchase, the rendered chips, AND the explicit latch so no
+        single dropped field can let a message slip through."""
+        return bool(
+            self._pending_wallet_snapshot()
+            or self._pending_wallet_choices()
+            or self.__dict__.get("awaiting_wallet")
+            or self.awaiting_wallet
+        )
 
     @rx.var
     def message_count(self) -> int:
@@ -144,7 +184,7 @@ class ChatState(rx.State):
                 role="assistant",
                 text=text,
                 meta=meta,
-                time=_now_str(),
+                time=_now_str(self.timezone_name),
                 alert=backend.classify_alert(text),
             )
         )
@@ -156,6 +196,18 @@ class ChatState(rx.State):
     @rx.event
     def dismiss_error(self):
         self.error_text = ""
+        self.error_token += 1
+
+    @rx.event(background=True)
+    async def auto_dismiss_error(self):
+        """Clear the banner 5 seconds after it was raised, unless the user
+        already dismissed it or a newer banner replaced it."""
+        async with self:
+            token = self.error_token
+        await asyncio.sleep(5)
+        async with self:
+            if self.error_token == token:
+                self.error_text = ""
 
     @rx.event
     def use_prompt(self, prompt: str):
@@ -180,6 +232,7 @@ class ChatState(rx.State):
         self.pending_conversion = {}
         self.pending_wallet = {}
         self.wallet_choices = []
+        self.awaiting_wallet = False
         self.draft = ""
         self.draft_version += 1
 
@@ -336,6 +389,7 @@ class ChatState(rx.State):
             if updated is not None:
                 self.pending_wallet = {}
                 self.wallet_choices = []
+                self.awaiting_wallet = False
                 return (
                     f"💰 Taken from {updated['name']} — ₱"
                     f"{wallet_backend.money(updated['balance'])} left."
@@ -347,18 +401,25 @@ class ChatState(rx.State):
             "item": item,
         }
         self.wallet_choices = self._wallet_choice_payload(wallets)
-        return "Which wallet did this come from? Tap one below."
+        self.awaiting_wallet = True
+        return (
+            "Which wallet did this come from? Tap one below to finish "
+            "logging it — a wallet is required."
+        )
 
     @rx.event
     async def choose_wallet(self, wallet_id: int):
         """Apply the parked transaction to the tapped wallet."""
-        pending = dict(self.pending_wallet)
+        pending = self._pending_wallet_snapshot()
         if not pending:
             self.wallet_choices = []
+            self.awaiting_wallet = False
             return
         user_id = await self._user_id()
         if not user_id:
             self.error_text = "Sign in again to update a wallet."
+            self.error_token += 1
+            yield ChatState.auto_dismiss_error
             return
         try:
             updated = await asyncio.to_thread(
@@ -375,10 +436,18 @@ class ChatState(rx.State):
 
         self.pending_wallet = {}
         self.wallet_choices = []
+        self.awaiting_wallet = False
         if updated is None:
+            # Keep the requirement intact: restore the pending purchase and
+            # the choice buttons so the user can retry.
+            self.pending_wallet = dict(pending)
+            self.wallet_choices = self._wallet_choice_payload(
+                self._wallet_rows(user_id)
+            )
+            self.awaiting_wallet = True
             self._append_assistant_message(
-                "I couldn't update that wallet just now — try again from "
-                "the Wallets page."
+                "I couldn't update that wallet just now — please pick one "
+                "again."
             )
             return
         self._append_assistant_message(
@@ -386,15 +455,6 @@ class ChatState(rx.State):
             f"{wallet_backend.money(updated['balance'])} left."
         )
         yield SidebarState.refresh
-
-    @rx.event
-    def skip_wallet(self):
-        """Leave the purchase unlinked — balances stay untouched."""
-        self.pending_wallet = {}
-        self.wallet_choices = []
-        self._append_assistant_message(
-            "No problem — I left your wallet balances as they are."
-        )
 
     def _rate_limited(self) -> bool:
         now = time.time()
@@ -473,9 +533,41 @@ class ChatState(rx.State):
 
     @rx.event
     async def send_message(self, form_data: dict[str, str]):
+        # HARD GATE: a wallet must be chosen for the previous purchase
+        # before ANY new message is accepted. This runs before the draft is
+        # read or cleared, before any bubble is appended, and before any
+        # agent / LLM / database work — nothing is processed and nothing
+        # the user typed is lost.
+        if self._wallet_selection_required():
+            # Re-assert the requirement on state (in case a field was
+            # dropped) and keep the chips visible. NEVER clear the parked
+            # purchase, the chips, the messages, or the draft here.
+            pending = self._pending_wallet_snapshot()
+            if pending:
+                self.pending_wallet = pending
+            self.awaiting_wallet = True
+            choices = self._pending_wallet_choices()
+            if not choices:
+                user_id = await self._user_id()
+                if user_id:
+                    wallets = await asyncio.to_thread(
+                        self._wallet_rows, user_id
+                    )
+                    choices = self._wallet_choice_payload(wallets)
+            self.wallet_choices = choices
+            self.error_text = (
+                "Pick a wallet for your last purchase first — tap one of "
+                "the wallet buttons above."
+            )
+            self.error_token += 1
+            yield ChatState.auto_dismiss_error
+            return
+
         prompt = (form_data.get("draft") or self.draft or "").strip()
         if not prompt:
             self.error_text = "Type something first — even 'coffee 150' works."
+            self.error_token += 1
+            yield ChatState.auto_dismiss_error
             return
 
         if self.is_sending:
@@ -491,6 +583,8 @@ class ChatState(rx.State):
             self.error_text = (
                 "Sign in or continue as a guest to start logging purchases."
             )
+            self.error_token += 1
+            yield ChatState.auto_dismiss_error
             return
 
         self.messages.append(
@@ -635,6 +729,10 @@ class ChatState(rx.State):
 
         self._append_assistant_message(response_text, meta)
         self.is_sending = False
+
+        if self.error_text:
+            self.error_token += 1
+            yield ChatState.auto_dismiss_error
 
         # Pending edit/conversion state is changed only by successful handling
         # or by an agent response that explicitly creates a pending action.

@@ -23,6 +23,7 @@ branch on account type.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -54,10 +55,7 @@ def _sandbox_fallback_url() -> str:
     env = os.getenv("PURCH_OAUTH_REDIRECT_URL", "").strip()
     if env:
         return env
-    return (
-        "https://8080-10ab0098-f3e4-4a14-8799-57149687e2ba"
-        ".build.reflexsandbox.com/login"
-    )
+    return "/login"
 
 
 class AuthState(rx.State):
@@ -79,6 +77,9 @@ class AuthState(rx.State):
     status: str = "idle"  # idle | busy | error | success
     error_text: str = ""
     info_text: str = ""
+    # Bumped whenever a banner is raised so a stale 5s auto-dismiss timer
+    # can never clear a newer message.
+    message_token: int = 0
 
     # Legacy fields kept because other pages already read them.
     oauth_status: str = "idle"
@@ -185,6 +186,19 @@ class AuthState(rx.State):
         self.error_text = ""
         self.info_text = ""
         self.status = "idle"
+        self.message_token += 1
+
+    @rx.event(background=True)
+    async def auto_dismiss_messages(self):
+        """Hide the status banner 5 seconds after it appeared, unless the
+        user dismissed it or a newer banner replaced it."""
+        async with self:
+            token = self.message_token
+        await asyncio.sleep(5)
+        async with self:
+            if self.message_token == token:
+                self.error_text = ""
+                self.info_text = ""
 
     # ------------------------------------------------------------------ #
     # Guest sign-in
@@ -209,6 +223,7 @@ class AuthState(rx.State):
                 "Signed in as guest — your data stays on this device."
             )
             self.status = "success"
+            self.message_token += 1
             return rx.redirect(ROUTES["chat"])
         except Exception as e:
             logging.exception(f"Guest sign-in failed: {e}")
@@ -228,6 +243,7 @@ class AuthState(rx.State):
                 "Email sign-in isn't available right now. "
                 "Try guest access to preview Purch."
             )
+            yield AuthState.auto_dismiss_messages
             return
 
         email = (form_data.get("email") or self.email_input or "").strip()
@@ -236,9 +252,11 @@ class AuthState(rx.State):
 
         if not _EMAIL_RE.match(email):
             self._show_error("Please enter a valid email address.")
+            yield AuthState.auto_dismiss_messages
             return
         if len(password) < 6:
             self._show_error("Password needs to be at least 6 characters long.")
+            yield AuthState.auto_dismiss_messages
             return
 
         self.status = "busy"
@@ -260,6 +278,7 @@ class AuthState(rx.State):
                     logging.info("Duplicate signup blocked for existing email.")
                     self._show_error(safe_auth_error(dup))
                     self.mode = "signin"
+                    yield AuthState.auto_dismiss_messages
                     return
                 # Supabase may require email confirmation depending on
                 # project settings; treat "no session yet" as a helpful
@@ -270,6 +289,8 @@ class AuthState(rx.State):
                     )
                     self.status = "success"
                     self.mode = "signin"
+                    self.message_token += 1
+                    yield AuthState.auto_dismiss_messages
                     return
             else:
                 result = sign_in_with_password(email, password)
@@ -288,6 +309,7 @@ class AuthState(rx.State):
         except Exception as e:
             logging.exception(f"Email auth failed: {e}")
             self._show_error(safe_auth_error(e))
+            yield AuthState.auto_dismiss_messages
 
     # ------------------------------------------------------------------ #
     # Password recovery
@@ -307,6 +329,7 @@ class AuthState(rx.State):
                 "Password recovery isn't available right now. "
                 "Try guest access to preview Purch."
             )
+            yield AuthState.auto_dismiss_messages
             return
 
         email = (
@@ -314,6 +337,7 @@ class AuthState(rx.State):
         ).strip()
         if not _EMAIL_RE.match(email):
             self._show_error("Please enter a valid email address for recovery.")
+            yield AuthState.auto_dismiss_messages
             return
 
         self.status = "busy"
@@ -334,9 +358,11 @@ class AuthState(rx.State):
             # Flip back to sign-in so the user can enter their new
             # password once they've followed the link.
             self.mode = "signin"
+            self.message_token += 1
         except Exception as e:
             logging.exception(f"Password recovery failed: {e}")
             self._show_error(safe_auth_error(e))
+        yield AuthState.auto_dismiss_messages
 
     @rx.event
     def handle_oauth_callback(self):
@@ -366,6 +392,7 @@ class AuthState(rx.State):
 
         if oauth_error:
             self._show_error(safe_auth_error(RuntimeError(oauth_error)))
+            yield AuthState.auto_dismiss_messages
             return
 
         if code:
@@ -390,12 +417,14 @@ class AuthState(rx.State):
             except Exception as e:
                 logging.exception(f"OAuth exchange failed: {e}")
                 self._show_error(safe_auth_error(e))
+                yield AuthState.auto_dismiss_messages
             return
 
         if not is_configured():
             self._show_error(
                 "Google sign-in isn't available right now. Try guest access instead."
             )
+            yield AuthState.auto_dismiss_messages
             return
 
         self.status = "busy"
@@ -408,6 +437,7 @@ class AuthState(rx.State):
         except Exception as e:
             logging.exception(f"Google OAuth start failed: {e}")
             self._show_error(safe_auth_error(e))
+            yield AuthState.auto_dismiss_messages
 
     # ------------------------------------------------------------------ #
     # Session control
@@ -466,6 +496,7 @@ class AuthState(rx.State):
         self.error_text = message
         self.info_text = ""
         self.status = "error"
+        self.message_token += 1
 
     def _compute_redirect_url(self) -> str:
         """Best-effort origin detection for the OAuth `redirect_to`.

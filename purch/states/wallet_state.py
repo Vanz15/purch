@@ -40,6 +40,9 @@ class WalletState(rx.State):
     unauthenticated: bool = False
     error_text: str = ""
     info_text: str = ""
+    # Bumped whenever a banner is raised so a stale 5s timer can never
+    # clear a newer message.
+    message_token: int = 0
 
     show_archived: bool = False
 
@@ -143,6 +146,10 @@ class WalletState(rx.State):
         finally:
             self.is_loading = False
 
+        if self.error_text or self.info_text:
+            self.message_token += 1
+            yield WalletState.auto_dismiss_message
+
     # ------------------------------------------------------------------ #
     # Form control
     # ------------------------------------------------------------------ #
@@ -192,6 +199,19 @@ class WalletState(rx.State):
     def dismiss_message(self):
         self.error_text = ""
         self.info_text = ""
+        self.message_token += 1
+
+    @rx.event(background=True)
+    async def auto_dismiss_message(self):
+        """Hide the banner after 5 seconds unless it was already dismissed
+        or replaced."""
+        async with self:
+            token = self.message_token
+        await asyncio.sleep(5)
+        async with self:
+            if self.message_token == token:
+                self.error_text = ""
+                self.info_text = ""
 
     # ------------------------------------------------------------------ #
     # Writes
@@ -199,6 +219,7 @@ class WalletState(rx.State):
 
     @rx.event
     async def submit_wallet(self, form_data: dict[str, str]):
+        self.message_token += 1
         name = (form_data.get("name") or "").strip()
         wallet_type = (form_data.get("wallet_type") or "Other").strip()
         raw_balance = (form_data.get("balance") or "0").strip()
@@ -206,9 +227,11 @@ class WalletState(rx.State):
 
         if not name:
             self.error_text = "Give the wallet a nickname you'll recognize."
+            yield WalletState.auto_dismiss_message
             return
         if len(name) > 40:
             self.error_text = "Keep the nickname under 40 characters."
+            yield WalletState.auto_dismiss_message
             return
         if wallet_type not in WALLET_TYPES:
             wallet_type = "Other"
@@ -216,14 +239,17 @@ class WalletState(rx.State):
             balance = float(raw_balance.replace(",", "").replace("₱", "") or 0)
         except ValueError:
             self.error_text = "Balance needs to be a plain number, e.g. 1500."
+            yield WalletState.auto_dismiss_message
             return
         if balance < 0:
             self.error_text = "Balance can't be negative — use a Debt wallet."
+            yield WalletState.auto_dismiss_message
             return
 
         user_id = await self._user_id()
         if not user_id:
             self.error_text = "Sign in first to manage wallets."
+            yield WalletState.auto_dismiss_message
             return
 
         editing = self.editing_id
@@ -260,6 +286,10 @@ class WalletState(rx.State):
             logging.exception(f"wallet save failed: {e}")
             self.error_text = "Couldn't save that wallet. Please try again."
 
+        if self.error_text or self.info_text:
+            self.message_token += 1
+            yield WalletState.auto_dismiss_message
+
     @rx.event
     async def archive_wallet(self, wallet_id: int):
         yield WalletState.set_archived_flag(int(wallet_id), True)
@@ -270,13 +300,19 @@ class WalletState(rx.State):
 
     @rx.event
     async def set_archived_flag(self, wallet_id: int, archived: bool):
+        self.message_token += 1
         user_id = await self._user_id()
         if not user_id:
             self.error_text = "Sign in first to manage wallets."
+            self.message_token += 1
+            yield WalletState.auto_dismiss_message
             return
         try:
             await asyncio.to_thread(
-                wallet_backend.set_archived, user_id, int(wallet_id), archived
+                wallet_backend.set_archived,
+                user_id,
+                wallet_id,
+                archived,
             )
             self.info_text = (
                 "Wallet archived." if archived else "Wallet restored."
@@ -285,6 +321,10 @@ class WalletState(rx.State):
         except Exception as e:
             logging.exception(f"wallet archive toggle failed: {e}")
             self.error_text = "Couldn't update that wallet. Please try again."
+
+        if self.error_text or self.info_text:
+            self.message_token += 1
+            yield WalletState.auto_dismiss_message
 
 
 def _to_row(raw: dict) -> WalletRow:

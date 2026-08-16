@@ -222,9 +222,18 @@ class SidebarState(rx.State):
             return [], empty, False
 
         totals = wallet_backend.summary(wallets)
-        peak = max((abs(float(w["balance"])) for w in wallets), default=0.0)
+        # Only consumable wallets (Cash / Bank) appear in the sidebar mini
+        # list, and the "Spendable" figure counts only those.
+        spendable = wallet_backend.consumable_wallets(wallets)
+        totals = {
+            "assets": wallet_backend.consumable_total(wallets),
+            "liabilities": totals["liabilities"],
+            "net": wallet_backend.consumable_total(wallets)
+            - totals["liabilities"],
+        }
+        peak = max((abs(float(w["balance"])) for w in spendable), default=0.0)
         rows: list[WalletMiniRow] = []
-        for w in wallets:
+        for w in spendable:
             balance = float(w["balance"])
             pct = (
                 int(min(round((abs(balance) / peak) * 100), 100)) if peak else 0

@@ -45,7 +45,7 @@ def _total_budget_card() -> rx.Component:
                     "width": rx.cond(
                         SidebarState.total_pct > 100,
                         "100%",
-                        f"{SidebarState.total_pct}%",
+                        SidebarState.total_pct.to_string() + "%",
                     )
                 },
             ),
@@ -112,7 +112,7 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                         "width": rx.cond(
                             row["pct"] > 100,
                             "100%",
-                            f"{row['pct']}%",
+                            row["pct"].to_string() + "%",
                         )
                     },
                 ),
@@ -256,7 +256,7 @@ def _wallet_mini_row(wallet: WalletMiniRow) -> rx.Component:
                     ),
                     "h-full rounded-full bg-[color:var(--purch-muted)]",
                 ),
-                style={"width": f"{wallet['pct']}%"},
+                style={"width": wallet["pct"].to_string() + "%"},
             ),
             class_name=(
                 "h-1 rounded-full bg-[color:var(--purch-border)] overflow-hidden"
@@ -277,7 +277,7 @@ def _wallet_section() -> rx.Component:
     """Spendable total, owed status, and per-wallet mini bars."""
     return rx.el.div(
         rx.el.p(
-            "Wallets",
+            "Spendable wallets",
             class_name=(
                 "font-['DM_Mono'] text-[0.6rem] uppercase tracking-[0.08em] "
                 "text-[color:var(--purch-muted)] mb-2"
@@ -371,8 +371,8 @@ def _wallet_section() -> rx.Component:
                         rx.foreach(SidebarState.wallet_rows, _wallet_mini_row)
                     ),
                     rx.el.p(
-                        "No wallets yet \u2014 add one to track cash, bank, "
-                        "savings, or money you've lent.",
+                        "No spendable wallets yet \u2014 add a Cash or Bank "
+                        "wallet to track what you can spend.",
                         class_name=(
                             "text-[0.7rem] text-[color:var(--purch-muted)] italic"
                         ),
@@ -391,7 +391,6 @@ def _wallet_section() -> rx.Component:
 
 def _wallets_link() -> rx.Component:
     return rx.el.a(
-        rx.el.span("👛", class_name="text-sm"),
         rx.el.span(
             "Manage wallets",
             class_name="text-xs font-semibold",
