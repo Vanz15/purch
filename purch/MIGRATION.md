@@ -28,7 +28,16 @@ application packages at the repo root:
 * `app.app/` — a transitional duplicate produced while the package
   was being renamed (contained `app.app/app.app.py`).
 
-**Cleanup status.** These directories are slated for deletion as part
+**Cleanup status (blocking lint).** The Reflex app-location lint rule
+reports `app/app.py` and `app.app/app.app.py` because each still
+instantiates its own `rx.App`. Both files are OUTSIDE the writable
+`purch/` scope of the automated build sandbox, so they cannot be edited
+or deleted from here — run `git rm -r app app.app` out-of-band to clear
+those two lint errors. No change to `rxconfig.py` or `purch/purch.py`
+is required: the canonical app already lives solely in
+`purch/purch.py`.
+
+These directories are slated for deletion as part
 of the project-structure cleanup phase. In the automated build sandbox
 they remain on disk because the tooling only permits writes inside
 `purch/`, so physical removal is performed out-of-band via a plain

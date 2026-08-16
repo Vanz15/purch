@@ -56,5 +56,6 @@ ROUTES: dict[str, str] = {
     "index": "/",
     "login": "/login",
     "chat": "/chat",
+    "wallets": "/wallets",
     "analytics": "/analytics",
 }

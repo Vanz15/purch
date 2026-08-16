@@ -340,16 +340,22 @@ class AuthState(rx.State):
 
     @rx.event
     def handle_oauth_callback(self):
-        """Process an OAuth callback when the login page is mounted."""
-        yield AuthState.begin_google_login
+        """Process an OAuth callback without starting OAuth on page load."""
+        try:
+            params = self.router.url.query_parameters or {}
+        except Exception:
+            logging.exception("Unexpected error reading OAuth callback")
+            params = {}
+        if (
+            params.get("code")
+            or params.get("error")
+            or params.get("error_description")
+        ):
+            yield AuthState.begin_google_login
 
     @rx.event
     def begin_google_login(self):
-        """Complete a Google OAuth callback when a code is present.
-
-        When no callback code is present this event is a silent no-op, so it
-        is safe to attach to every login page load.
-        """
+        """Start Google OAuth or finish a callback already on the login URL."""
         try:
             params = self.router.url.query_parameters or {}
         except Exception:
@@ -362,28 +368,45 @@ class AuthState(rx.State):
             self._show_error(safe_auth_error(RuntimeError(oauth_error)))
             return
 
-        if not code:
+        if code:
+            self.status = "busy"
+            self.error_text = ""
+            self.info_text = "Finishing Google sign-in…"
+            yield
+            try:
+                result = exchange_code_for_session(code)
+                self._persist_identity(
+                    user_id=result["user_id"],
+                    email=result["email"],
+                    name=result["name"],
+                    picture="",
+                    method="google",
+                )
+                self.info_text = (
+                    "Signed in with Google — taking you to the chat."
+                )
+                self.status = "success"
+                yield rx.redirect(ROUTES["chat"])
+            except Exception as e:
+                logging.exception(f"OAuth exchange failed: {e}")
+                self._show_error(safe_auth_error(e))
+            return
+
+        if not is_configured():
+            self._show_error(
+                "Google sign-in isn't available right now. Try guest access instead."
+            )
             return
 
         self.status = "busy"
         self.error_text = ""
-        self.info_text = "Finishing Google sign-in…"
-        yield
-
         try:
-            result = exchange_code_for_session(code)
-            self._persist_identity(
-                user_id=result["user_id"],
-                email=result["email"],
-                name=result["name"],
-                picture="",
-                method="google",
-            )
-            self.info_text = "Signed in with Google — taking you to the chat."
-            self.status = "success"
-            yield rx.redirect(ROUTES["chat"])
+            redirect_url = self._compute_redirect_url()
+            oauth_url = build_google_oauth_url(redirect_url)
+            self.status = "idle"
+            yield rx.redirect(oauth_url)
         except Exception as e:
-            logging.exception(f"OAuth exchange failed: {e}")
+            logging.exception(f"Google OAuth start failed: {e}")
             self._show_error(safe_auth_error(e))
 
     # ------------------------------------------------------------------ #

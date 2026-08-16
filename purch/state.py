@@ -10,8 +10,10 @@ project's coding conventions). This module exposes them under the flat
 from purch.states.auth_state import AuthState
 from purch.states.chat_state import PROMPT_CHIPS, ChatMessage, ChatState
 from purch.states.nav_state import NavState
+from purch.states.wallet_state import WalletState
 
 __all__ = [
+    "WalletState",
     "AuthState",
     "ChatState",
     "ChatMessage",

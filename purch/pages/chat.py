@@ -5,7 +5,7 @@ import reflex as rx
 from purch.components.chat_bubble import chat_bubble, typing_indicator
 from purch.components.layout import page_shell
 from purch.states.auth_state import AuthState
-from purch.states.chat_state import PROMPT_CHIPS, ChatState
+from purch.states.chat_state import PROMPT_CHIPS, ChatState, WalletChoice
 from purch.theme import CLASSES, ROUTES
 
 
@@ -128,6 +128,66 @@ def _composer() -> rx.Component:
     )
 
 
+def _wallet_chip(choice: WalletChoice) -> rx.Component:
+    return rx.el.button(
+        rx.el.span(
+            choice["name"],
+            class_name="text-sm font-semibold",
+        ),
+        rx.el.span(
+            rx.el.span("₱", choice["balance_display"]),
+            class_name=(
+                "font-['DM_Mono'] text-[0.65rem] "
+                "text-[color:var(--purch-muted)]"
+            ),
+        ),
+        on_click=lambda: ChatState.choose_wallet(choice["id"]),
+        type="button",
+        class_name=(
+            "flex flex-col items-start gap-0.5 px-3.5 py-2 rounded-xl "
+            "bg-[color:var(--purch-paper)] border "
+            "border-[color:var(--purch-border)] "
+            "text-[color:var(--purch-ink)] "
+            "hover:border-[color:var(--purch-teal)] "
+            "hover:text-[color:var(--purch-teal)] transition-colors"
+        ),
+    )
+
+
+def _wallet_choice_row() -> rx.Component:
+    """Clickable wallet chips shown when a logged purchase still needs a
+    wallet. Buttons (not typing) so nicknames can never be misspelled."""
+    return rx.cond(
+        ChatState.has_wallet_choices,
+        rx.el.div(
+            rx.el.div(
+                "Pick a wallet",
+                class_name=CLASSES["eyebrow"],
+            ),
+            rx.el.div(
+                rx.foreach(ChatState.wallet_choices, _wallet_chip),
+                class_name="flex flex-wrap gap-2 mt-2",
+            ),
+            rx.el.button(
+                "Skip for now",
+                on_click=ChatState.skip_wallet,
+                type="button",
+                class_name=(
+                    "text-xs text-[color:var(--purch-muted)] "
+                    "hover:text-[color:var(--purch-coral)] "
+                    "transition-colors mt-3"
+                ),
+            ),
+            class_name=(
+                "mt-2 p-4 rounded-xl border border-dashed "
+                "border-[color:var(--purch-border)] "
+                "bg-[color:var(--purch-parchment)]"
+            ),
+        ),
+        rx.fragment(),
+    )
+
+
 def _clear_controls() -> rx.Component:
     return rx.cond(
         ChatState.has_messages,
@@ -232,6 +292,7 @@ def _authenticated_body() -> rx.Component:
         _header_row(),
         _error_banner(),
         rx.cond(ChatState.has_messages, _message_list(), _empty_state()),
+        _wallet_choice_row(),
         _composer(),
     )
 

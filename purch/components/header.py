@@ -38,6 +38,7 @@ def header() -> rx.Component:
             ),
             rx.el.nav(
                 _nav_link("Chat", ROUTES["chat"]),
+                _nav_link("Wallets", ROUTES["wallets"]),
                 _nav_link("Analytics", ROUTES["analytics"]),
                 rx.cond(
                     AuthState.is_authenticated,

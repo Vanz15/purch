@@ -9,7 +9,7 @@ import reflex as rx
 
 from purch.states.auth_state import AuthState
 from purch.states.nav_state import NavState
-from purch.states.sidebar_state import BudgetRow, SidebarState
+from purch.states.sidebar_state import BudgetRow, SidebarState, WalletMiniRow
 from purch.theme import CLASSES, ROUTES
 
 
@@ -45,7 +45,7 @@ def _total_budget_card() -> rx.Component:
                     "width": rx.cond(
                         SidebarState.total_pct > 100,
                         "100%",
-                        SidebarState.total_pct.to_string() + "%",
+                        f"{SidebarState.total_pct}%",
                     )
                 },
             ),
@@ -112,7 +112,7 @@ def _budget_row(row: BudgetRow) -> rx.Component:
                         "width": rx.cond(
                             row["pct"] > 100,
                             "100%",
-                            row["pct"].to_string() + "%",
+                            f"{row['pct']}%",
                         )
                     },
                 ),
@@ -215,6 +215,195 @@ def _tone_section() -> rx.Component:
             class_name="w-full",
         ),
         class_name="mb-4",
+    )
+
+
+def _wallet_mini_row(wallet: WalletMiniRow) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.span(
+                wallet["name"],
+                class_name=(
+                    "text-xs font-medium text-[color:var(--purch-ink)] "
+                    "truncate max-w-[9rem]"
+                ),
+            ),
+            rx.el.span(
+                rx.el.span("\u20b1", wallet["balance_display"]),
+                class_name=rx.cond(
+                    wallet["is_liability"],
+                    "font-['DM_Mono'] text-[0.7rem] text-[color:var(--purch-danger)]",
+                    "font-['DM_Mono'] text-[0.7rem] text-[color:var(--purch-teal)]",
+                ),
+            ),
+            class_name="flex items-center justify-between gap-2 mb-1",
+        ),
+        rx.el.div(
+            rx.el.div(
+                class_name=rx.match(
+                    wallet["accent"],
+                    (
+                        "gold",
+                        "h-full rounded-full bg-[color:var(--purch-gold)]",
+                    ),
+                    (
+                        "teal",
+                        "h-full rounded-full bg-[color:var(--purch-teal)]",
+                    ),
+                    (
+                        "danger",
+                        "h-full rounded-full bg-[color:var(--purch-danger)]",
+                    ),
+                    "h-full rounded-full bg-[color:var(--purch-muted)]",
+                ),
+                style={"width": f"{wallet['pct']}%"},
+            ),
+            class_name=(
+                "h-1 rounded-full bg-[color:var(--purch-border)] overflow-hidden"
+            ),
+        ),
+        rx.el.div(
+            wallet["wallet_type"],
+            class_name=(
+                "font-['DM_Mono'] text-[0.55rem] uppercase "
+                "tracking-[0.08em] text-[color:var(--purch-muted)] mt-0.5"
+            ),
+        ),
+        class_name="mb-3",
+    )
+
+
+def _wallet_section() -> rx.Component:
+    """Spendable total, owed status, and per-wallet mini bars."""
+    return rx.el.div(
+        rx.el.p(
+            "Wallets",
+            class_name=(
+                "font-['DM_Mono'] text-[0.6rem] uppercase tracking-[0.08em] "
+                "text-[color:var(--purch-muted)] mb-2"
+            ),
+        ),
+        rx.cond(
+            SidebarState.wallets_available,
+            rx.el.div(
+                rx.el.div(
+                    rx.el.div(
+                        rx.el.div(
+                            "Spendable",
+                            class_name=(
+                                "font-['DM_Mono'] text-[0.55rem] uppercase "
+                                "tracking-[0.08em] text-[color:var(--purch-muted)]"
+                            ),
+                        ),
+                        rx.el.div(
+                            rx.el.span(
+                                "\u20b1",
+                                class_name=(
+                                    "font-['DM_Mono'] text-sm "
+                                    "text-[color:var(--purch-muted)] mr-0.5"
+                                ),
+                            ),
+                            rx.el.span(
+                                SidebarState.spendable_display,
+                                class_name=(
+                                    "font-['DM_Mono'] text-lg font-bold "
+                                    "text-[color:var(--purch-teal)]"
+                                ),
+                            ),
+                            class_name="flex items-baseline",
+                        ),
+                        class_name="flex-1 min-w-0",
+                    ),
+                    rx.cond(
+                        SidebarState.has_liabilities,
+                        rx.el.div(
+                            rx.el.div(
+                                "Owed / lent",
+                                class_name=(
+                                    "font-['DM_Mono'] text-[0.55rem] uppercase "
+                                    "tracking-[0.08em] text-[color:var(--purch-muted)]"
+                                ),
+                            ),
+                            rx.el.span(
+                                "\u20b1",
+                                SidebarState.liabilities_display,
+                                class_name=(
+                                    "font-['DM_Mono'] text-sm font-bold "
+                                    "text-[color:var(--purch-danger)]"
+                                ),
+                            ),
+                            class_name="text-right shrink-0",
+                        ),
+                        rx.fragment(),
+                    ),
+                    class_name=(
+                        "flex items-start justify-between gap-2 rounded-xl "
+                        "border border-[color:var(--purch-border)] "
+                        "bg-[color:var(--purch-paper)] p-3 mb-3"
+                    ),
+                ),
+                rx.cond(
+                    SidebarState.has_liabilities,
+                    rx.el.div(
+                        rx.el.span(
+                            "Net position",
+                            class_name=(
+                                "font-['DM_Mono'] text-[0.55rem] uppercase "
+                                "tracking-[0.08em] text-[color:var(--purch-muted)]"
+                            ),
+                        ),
+                        rx.el.span(
+                            rx.el.span(
+                                "\u20b1", SidebarState.wallet_net_display
+                            ),
+                            class_name=(
+                                "font-['DM_Mono'] text-[0.7rem] "
+                                "text-[color:var(--purch-gold)]"
+                            ),
+                        ),
+                        class_name="flex items-center justify-between mb-3",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    SidebarState.has_wallets,
+                    rx.el.div(
+                        rx.foreach(SidebarState.wallet_rows, _wallet_mini_row)
+                    ),
+                    rx.el.p(
+                        "No wallets yet \u2014 add one to track cash, bank, "
+                        "savings, or money you've lent.",
+                        class_name=(
+                            "text-[0.7rem] text-[color:var(--purch-muted)] italic"
+                        ),
+                    ),
+                ),
+            ),
+            rx.el.p(
+                "Wallet balances need the cloud database \u2014 chat and "
+                "budgets keep working.",
+                class_name="text-[0.7rem] text-[color:var(--purch-muted)] italic",
+            ),
+        ),
+        class_name="mb-4",
+    )
+
+
+def _wallets_link() -> rx.Component:
+    return rx.el.a(
+        rx.el.span("👛", class_name="text-sm"),
+        rx.el.span(
+            "Manage wallets",
+            class_name="text-xs font-semibold",
+        ),
+        href=ROUTES["wallets"],
+        class_name=(
+            "flex items-center gap-2 mb-4 px-3 py-2 rounded-xl "
+            "border border-[color:var(--purch-border)] "
+            "bg-[color:var(--purch-paper)] text-[color:var(--purch-ink)] "
+            "hover:border-[color:var(--purch-teal)] "
+            "hover:text-[color:var(--purch-teal)] transition-colors"
+        ),
     )
 
 
@@ -375,6 +564,8 @@ def sidebar() -> rx.Component:
                         rx.el.div(
                             _total_budget_card(),
                             _budgets_section(),
+                            _wallet_section(),
+                            _wallets_link(),
                             _tone_section(),
                             _profile_section(),
                         ),

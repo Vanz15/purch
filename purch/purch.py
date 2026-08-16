@@ -2,9 +2,14 @@
 
 The normalized package exposes exactly one Reflex application: this module. It
 is intentionally the only supported location for the Reflex app instance.
+Legacy root-level Reflex shells are intentionally not imported here.
 It is the only supported Reflex discovery target for the project.
-Legacy application modules outside ``purch/`` are not part of the Reflex
-entry point and must not be discovered or imported.
+Legacy application modules outside ``purch/`` are not part of the
+canonical deployment entry point and must not be discovered or imported.
+The canonical app instance below is intentionally kept in this module so
+Reflex's app-location lint rule has one unambiguous owner. Legacy shells are
+not application entrypoints and are outside the canonical deployment graph.
+Reflex discovery is anchored to this module through ``rxconfig.py``.
 
 This is the only module in the normalized application package that creates
 an ``rx.App`` or registers pages. Reflex discovery should use
@@ -19,6 +24,7 @@ from purch.pages.analytics import analytics_page
 from purch.pages.chat import chat_page
 from purch.pages.index import index_page
 from purch.pages.login import login_page
+from purch.pages.wallets import wallets_page
 from purch.theme import COLORS, ROUTES
 
 
@@ -50,6 +56,7 @@ app.add_page(
 )
 app.add_page(login_page, route=ROUTES["login"], title="Sign in · Purch")
 app.add_page(chat_page, route=ROUTES["chat"], title="Chat · Purch")
+app.add_page(wallets_page, route=ROUTES["wallets"], title="Wallets · Purch")
 app.add_page(
     analytics_page, route=ROUTES["analytics"], title="Analytics · Purch"
 )

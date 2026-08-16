@@ -29,7 +29,7 @@ import reflex as rx
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from purch import backend
+from purch import backend, wallet_backend
 from purch.time_utils import (
     format_stored_timestamp,
     month_label,
@@ -67,6 +67,20 @@ class BudgetStatusRow(TypedDict):
     pct: int
     remaining: float
     status: str  # "on_track" | "near" | "over"
+
+
+class WalletBar(TypedDict):
+    id: int
+    name: str
+    wallet_type: str
+    balance: float
+    balance_display: str
+    pct: int
+    accent: str
+    note: str
+    is_liability: bool
+    movement_count: int
+    movement_display: str
 
 
 class RecentTx(TypedDict):
@@ -155,6 +169,17 @@ class AnalyticsState(rx.State):
     budget_status: list[BudgetStatusRow] = []
     recent_transactions: list[RecentTx] = []
 
+    # Wallet / bank status
+    wallet_bars: list[WalletBar] = []
+    wallets_unavailable: bool = False
+    wallet_assets: float = 0.0
+    wallet_liabilities: float = 0.0
+    wallet_net: float = 0.0
+    wallet_assets_display: str = "0.00"
+    wallet_liabilities_display: str = "0.00"
+    wallet_net_display: str = "0.00"
+    wallet_peak: float = 0.0
+
     month_label: str = ""
     last_refreshed: str = ""
     refresh_status: str = ""
@@ -181,6 +206,14 @@ class AnalyticsState(rx.State):
     @rx.var
     def has_recent(self) -> bool:
         return len(self.recent_transactions) > 0
+
+    @rx.var
+    def has_wallets(self) -> bool:
+        return len(self.wallet_bars) > 0
+
+    @rx.var
+    def has_wallet_liabilities(self) -> bool:
+        return self.wallet_liabilities > 0
 
     async def _resolve_user(self) -> str:
         """Return the signed-in user id or an empty string. No anonymous
@@ -276,6 +309,13 @@ class AnalyticsState(rx.State):
             self.budget_spent_total = 0.0
             self.budget_remaining_total = 0.0
             self.trend_peak = 0.0
+            self.wallet_bars = []
+            self.wallet_assets = 0.0
+            self.wallet_liabilities = 0.0
+            self.wallet_net = 0.0
+            self.wallet_assets_display = "0.00"
+            self.wallet_liabilities_display = "0.00"
+            self.wallet_net_display = "0.00"
             self._refresh_in_flight = False
             return
 
@@ -460,6 +500,9 @@ class AnalyticsState(rx.State):
                 )
             self.recent_transactions = recents
 
+            # ---- Wallet / bank status -------------------------------
+            self._load_wallets(user_id)
+
             # ---- Meta -----------------------------------------------
             self.month_label = month_label(today, self.timezone_name)
             self.last_refreshed = now_display(self.timezone_name)
@@ -467,6 +510,7 @@ class AnalyticsState(rx.State):
                 self.month_tx_count == 0
                 and not self.budget_status
                 and not self.recent_transactions
+                and not self.wallet_bars
             )
             self.has_loaded = True
         except Exception as e:
@@ -498,3 +542,90 @@ class AnalyticsState(rx.State):
                 self.refresh_status = "Showing the last saved snapshot"
             else:
                 self.refresh_status = ""
+
+    def _load_wallets(self, user_id: str) -> None:
+        """Load wallet balances (and this month's ledger movement counts)
+        for the wallet status section.
+
+        Isolated in its own try/except so a missing/unavailable wallet
+        table can never take down the rest of the spending dashboard.
+        """
+        try:
+            if not wallet_backend.available():
+                self.wallets_unavailable = True
+                self.wallet_bars = []
+                return
+            wallets = wallet_backend.list_wallets(user_id)
+        except Exception as e:
+            logging.exception(f"analytics wallet read failed: {e}")
+            self.wallets_unavailable = True
+            self.wallet_bars = []
+            return
+
+        self.wallets_unavailable = False
+        movements: dict[int, tuple[int, float]] = {}
+        try:
+            engine = _engine_or_none()
+            if engine is not None and wallets:
+                month_start = today_in_timezone(self.timezone_name).replace(
+                    day=1
+                )
+                with engine.connect() as conn:
+                    rows = conn.execute(
+                        text(
+                            "SELECT wallet_id, COUNT(*) AS cnt, "
+                            "COALESCE(SUM(amount_delta), 0) AS delta "
+                            "FROM wallet_ledger "
+                            "WHERE user_id = :uid "
+                            "AND created_at >= (:som)::timestamp "
+                            "GROUP BY wallet_id"
+                        ),
+                        {"uid": user_id, "som": month_start.isoformat()},
+                    ).all()
+                for r in rows:
+                    movements[int(r[0])] = (_to_int(r[1]), _to_float(r[2]))
+        except Exception as e:
+            logging.exception(f"wallet ledger movement read failed: {e}")
+            movements = {}
+
+        totals = wallet_backend.summary(wallets)
+        peak = max((abs(float(w["balance"])) for w in wallets), default=0.0)
+        bars: list[WalletBar] = []
+        for w in wallets:
+            balance = float(w["balance"])
+            count, delta = movements.get(int(w["id"]), (0, 0.0))
+            pct = (
+                int(min(round((abs(balance) / peak) * 100), 100)) if peak else 0
+            )
+            sign = "-" if delta < 0 else "+"
+            bars.append(
+                WalletBar(
+                    id=int(w["id"]),
+                    name=str(w["name"]),
+                    wallet_type=str(w["wallet_type"]),
+                    balance=round(balance, 2),
+                    balance_display=wallet_backend.money(balance),
+                    pct=pct,
+                    accent=wallet_backend.TYPE_ACCENT.get(
+                        w["wallet_type"], "muted"
+                    ),
+                    note=str(w.get("note") or ""),
+                    is_liability=str(w["wallet_type"]) in ("Debt", "Loan"),
+                    movement_count=count,
+                    movement_display=(
+                        f"{sign}\u20b1{wallet_backend.money(abs(delta))}"
+                        if count
+                        else "No movement this month"
+                    ),
+                )
+            )
+        self.wallet_bars = bars
+        self.wallet_peak = peak
+        self.wallet_assets = totals["assets"]
+        self.wallet_liabilities = totals["liabilities"]
+        self.wallet_net = totals["net"]
+        self.wallet_assets_display = wallet_backend.money(totals["assets"])
+        self.wallet_liabilities_display = wallet_backend.money(
+            totals["liabilities"]
+        )
+        self.wallet_net_display = wallet_backend.money(totals["net"])
