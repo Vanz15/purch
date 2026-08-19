@@ -2,8 +2,8 @@ import sqlite3
 from pathlib import Path
 
 # Path.resolve() makes this independent of the working directory the app is
-# launched from (e.g. running `streamlit run app.py` from the repo root vs.
-# running a script from inside db/ during testing both resolve correctly).
+# launched from (e.g. running `reflex run` from the repo root vs. running a
+# script from inside db/ during testing both resolve correctly).
 DB_PATH = (Path(__file__).parent.parent / "data" / "budget.db").resolve()
 SCHEMA_PATH = (Path(__file__).parent / "schema.sql").resolve()
 

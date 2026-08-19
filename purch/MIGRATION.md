@@ -1,323 +1,90 @@
-# Purch — Streamlit → Reflex Migration Notes
+# Purch Migration and Deployment Notes
 
-Structural companion doc. The full analysis lives in this file — moved
-here from `app/MIGRATION.md` as part of the project-structure
-normalization pass.
+## Current canonical architecture
 
-## Deployment target (canonical)
+The repository is now organized around one Reflex application package:
 
-Reflex discovery is normalized on a single entrypoint:
-
-* `rxconfig.py` sets `app_name="purch"`, which resolves to
-  `purch/purch.py` and its module-global `app = rx.App(...)`.
-* `purch/purch.py` is the ONLY module in the repository that
-  instantiates `rx.App` or calls `app.add_page`. Every page, component,
-  and state class the shell renders is imported from `purch.*`.
-* The Streamlit fallback (`app.py` at the repo root, plus `ui/`) is
-  invoked with `streamlit run app.py` and does not participate in
-  Reflex discovery.
-
-### Legacy Reflex packages (scheduled for physical removal)
-
-> **Re-verified once more in the current pass.** `delete_file` on both
-> `app/app.py` and `app.app/app.app.py` was rejected again: "protected or
-> outside the app layout. Only files under `purch/` ... may be modified."
-> The two remaining lint errors ("App must be defined in purch/purch.py")
-> originate solely from those legacy modules. Remediate out-of-band with
-> `git rm -r app app.app`. No change to `rxconfig.py` or `purch/purch.py`
-> is required — the canonical `rx.App` already lives only in
-> `purch/purch.py`.
-
-> **Re-verified again in this pass.** `delete_file` on `app/app.py` and
-> `app.app/app.app.py` was rejected once more ("protected or outside the
-> app layout"). The two remaining lint errors ("App must be defined in
-> purch/purch.py") originate solely from those legacy modules and cannot
-> be cleared from inside the sandbox. Remediate out-of-band with
-> `git rm -r app app.app`. The canonical — and only intended — `rx.App`
-> already lives in `purch/purch.py`.
-
-> **Re-verified in the current pass (again).** `delete_file` on both
-> `app/app.py` and `app.app/app.app.py` was rejected once more:
-> "protected or outside the app layout. Only files under `purch/` ...
-> may be modified." The two remaining lint errors ("App must be defined
-> in purch/purch.py") originate solely from those legacy modules and
-> cannot be cleared from inside the sandbox. Remediate out-of-band with
-> `git rm -r app app.app`. No change to `rxconfig.py` or
-> `purch/purch.py` is required — the canonical (and only intended)
-> `rx.App` already lives in `purch/purch.py`, and nothing in the
-> deployment graph imports either legacy package.
-
-> **Re-verified again in the current pass.** `delete_file` on both
-> `app/app.py` and `app.app/app.app.py` was rejected once more:
-> "protected or outside the app layout. Only files under `purch/` ...
-> may be modified." The two remaining lint errors ("App must be defined
-> in purch/purch.py") come only from those legacy modules. Clear them
-> out-of-band with `git rm -r app app.app`. No change to `rxconfig.py`
-> or `purch/purch.py` is required — the canonical `rx.App` already
-> lives solely in `purch/purch.py`.
-
-> **Re-verified again in the latest pass.** `delete_file` on both
-> `app/app.py` and `app.app/app.app.py` was rejected once more:
-> "protected or outside the app layout. Only files under `purch/` ...
-> may be modified." The only two remaining lint errors ("App must be
-> defined in purch/purch.py") originate solely from those legacy
-> modules. Remediate out-of-band with `git rm -r app app.app`. No change
-> to `rxconfig.py` or `purch/purch.py` is required — the canonical (and
-> only intended) `rx.App` already lives in `purch/purch.py`, and nothing
-> in the deployment graph imports either legacy package.
-
-> **Re-verified in the latest pass.** `delete_file` on `app/app.py` and
-> `app.app/app.app.py` was rejected again: "protected or outside the app
-> layout. Only files under `purch/` ... may be modified." The two
-> remaining lint errors ("App must be defined in purch/purch.py") come
-> solely from those legacy modules. Clear them out-of-band with
-> `git rm -r app app.app`. No change to `rxconfig.py` or
-> `purch/purch.py` is required — the canonical `rx.App` already lives
-> only in `purch/purch.py`.
-
-> **Re-verified again in this pass.** `delete_file` on both `app/app.py`
-> and `app.app/app.app.py` was rejected once more: "protected or outside
-> the app layout. Only files under `purch/` ... may be modified." The two
-> outstanding lint errors ("App must be defined in purch/purch.py") come
-> exclusively from those legacy modules. Clear them out-of-band with
-> `git rm -r app app.app`. No change to `rxconfig.py` or
-> `purch/purch.py` is required — the canonical (and only intended)
-> `rx.App` already lives in `purch/purch.py`, and nothing in the
-> deployment graph imports either legacy package.
-
-> **Re-verified once more this pass.** `delete_file` on both
-> `app/app.py` and `app.app/app.app.py` was again rejected: "protected
-> or outside the app layout. Only files under `purch/` ... may be
-> modified." The only two outstanding lint errors ("App must be defined
-> in purch/purch.py") originate solely from those legacy modules.
-> Remediate out-of-band with `git rm -r app app.app`. No change to
-> `rxconfig.py` or `purch/purch.py` is needed — the canonical (and only
-> intended) `rx.App` already lives in `purch/purch.py`, and nothing in
-> the deployment graph imports either legacy package.
-
-> **Re-verified this pass (again).** `delete_file` on both `app/app.py`
-> and `app.app/app.app.py` was rejected: "protected or outside the app
-> layout. Only files under `purch/` ... may be modified." The two
-> remaining lint errors ("App must be defined in purch/purch.py") come
-> from those legacy files only. Clear them out-of-band with
-> `git rm -r app app.app`. The canonical — and only — `rx.App` already
-> lives in `purch/purch.py`, and nothing in the deployment graph imports
-> either legacy package, so no code change is required.
-
-> **Re-verified again this pass.** `delete_file` on `app/app.py` and
-> `app.app/app.app.py` both returned "protected or outside the app
-> layout — only files under `purch/` ... may be modified". The two
-> remaining lint errors ("App must be defined in purch/purch.py") are
-> therefore not resolvable from inside the sandbox. Run `git rm -r app
-> app.app` out-of-band; no change to `rxconfig.py` or `purch/purch.py`
-> is needed because the canonical `rx.App` already lives only in
-> `purch/purch.py`.
-
-> **Status: still blocking lint, still unfixable in-sandbox.** Both
-> `git rm`-equivalent deletions were attempted again and rejected by the
-> tooling ("outside the app layout — only files under `purch/` may be
-> modified"). Run `git rm -r app app.app` out-of-band.
-
-> **Remediation command (must be run outside the sandbox):**
-> `git rm -r app app.app`
-> Both `app/app.py` and `app.app/app.app.py` are read-only from the
-> build sandbox (the tooling only permits writes/deletes under
-> `purch/`), so the two "App must be defined in purch/purch.py" lint
-> errors cannot be cleared from here. The canonical — and only
-> intended — `rx.App` already lives in `purch/purch.py`, and nothing in
-> the deployment graph imports either legacy package.
-
-> **Outstanding lint (not fixable from this sandbox).** The two lint
-> errors reported against `app/app.py` and `app.app/app.app.py`
-> ("App must be defined in purch/purch.py") come from files outside the
-> writable `purch/` scope; the tooling refuses both edits and deletes
-> for those paths. Clear them out-of-band with `git rm -r app app.app`.
-> The canonical app already lives only in `purch/purch.py`.
-
-Earlier phases of the migration produced two now-superseded Reflex
-application packages at the repo root:
-
-* `app/` — the original phase-1 Reflex shell (had its own `rx.App` in
-  `app/app.py`, plus parallel `pages/`, `components/`, `states/`,
-  `theme.py`).
-* `app.app/` — a transitional duplicate produced while the package
-  was being renamed (contained `app.app/app.app.py`).
-
-**Cleanup status (blocking lint).** The Reflex app-location lint rule
-reports `app/app.py` and `app.app/app.app.py` because each still
-instantiates its own `rx.App`. Both files are OUTSIDE the writable
-`purch/` scope of the automated build sandbox, so they cannot be edited
-or deleted from here — run `git rm -r app app.app` out-of-band to clear
-those two lint errors. No change to `rxconfig.py` or `purch/purch.py`
-is required: the canonical app already lives solely in
-`purch/purch.py`.
-
-These directories are slated for deletion as part
-of the project-structure cleanup phase. In the automated build sandbox
-they remain on disk because the tooling only permits writes inside
-`purch/`, so physical removal is performed out-of-band via a plain
-`git rm -r app app.app` (or an equivalent shell/VCS deletion) before
-the next deploy. Nothing needs to change in `rxconfig.py` or
-`purch/purch.py` when that happens — both are already anchored to the
-canonical `purch` package.
-
-Until physical deletion lands, both packages are **inert** and are
-not part of the deployment graph:
-
-* Nothing under `purch/` imports from `app/` or `app.app/`.
-* Nothing under `agent/`, `llm/`, or `db/` imports from them either —
-  those packages are framework-agnostic and shared between the
-  Streamlit fallback and the Reflex shell.
-* `rxconfig.py` sets `app_name="purch"`, so Reflex discovery resolves
-  to `purch/purch.py:app` and never loads either legacy package as an
-  application module.
-* `purch/purch.py` is the sole module in the repository that
-  instantiates `rx.App` or calls `app.add_page`.
-* The Streamlit entrypoint is the plain `app.py` file at the repo
-  root; the `app/` directory is not what `streamlit run app.py`
-  executes.
-
-Do not add new imports pointing at `app/` or `app.app/`, do not edit
-them, and do not use them as templates — the canonical
-implementations of every page, component, and state class live under
-`purch/`.
-
-## Normalized layout (current)
-
-```
-rxconfig.py                Points Reflex at the `purch` package
+```text
+rxconfig.py
 assets/
-  purch_theme.css          Palette + chat-bubble / card / chip primitives
-  purch_animations.css     Small keyframes (fade-in, rise)
-purch/                     THE Reflex application package
-  __init__.py
-  purch.py                 The sole rx.App instance + add_page calls
-  theme.py                 COLORS / CLASSES / ROUTES
-  state.py                 Flat re-exports of every state class
-  states/
-    nav_state.py           Sidebar open/closed
-    auth_state.py          Google OAuth placeholder + session shape
-    chat_state.py          Chat message list, composer, local reply stub
-  components/
-    brand.py               Purch wordmark + Beta pill
-    header.py              Fixed top nav
-    layout.py              page_shell(...) — every page renders through this
-    chat_bubble.py         User/assistant bubbles + typing indicator
-  pages/
-    index.py               Landing / hero (public)
-    login.py               Two-panel branded sign-in
-    chat.py                Stateful chat shell (local stub replies)
-    analytics.py           Placeholder KPIs + "coming soon" card
-agent/, llm/, db/          Framework-agnostic business logic (SHARED
-                           between the Streamlit fallback and the
-                           Reflex shell — imported directly by both)
-app.py, ui/                Streamlit fallback (kept intact)
-
-app/, app.app/             LEGACY Reflex packages. Superseded by
-                           `purch/`. Not imported anywhere and not
-                           part of the deployment graph. Slated for
-                           physical deletion via `git rm -r app app.app`
-                           out-of-band from the automated build
-                           sandbox (which only permits writes under
-                           `purch/`).
+purch/
+  purch.py                 sole rx.App instance and page registration
+  theme.py                 visual tokens and routes
+  state.py                 convenience state re-exports
+  states/                  Reflex state classes
+  components/              shared UI components
+  pages/                   route-level page components
+  db_backend.py            SQLAlchemy/PostgreSQL adapter
+  supabase_auth.py         Supabase authentication wrapper
+  wallet_backend.py        wallet persistence and queries
+  wallet_intent.py         wallet intent parsing
+  wallet_llm.py            wallet-related LLM helpers
+agent/                     framework-independent agent graph
+llm/                       extraction, intent, tone, safety, Groq helpers
+db/                        shared database models and local compatibility path
+tests/                     automated test suite
 ```
 
-## Shared backend logic (single copy, two consumers)
+`rxconfig.py` sets `app_name="purch"`, and `purch/purch.py` is the only module that creates `rx.App` or registers pages. The legacy `app/` and `app.app/` Reflex trees, the root Streamlit entry point, and the `ui/` Streamlit components are no longer part of the project.
 
-The Streamlit fallback (`app.py` at repo root) imports from `agent/`,
-`llm/`, and `db/` directly and must keep working during the migration.
-Rather than duplicate that code, the Reflex shell imports the exact
-same top-level packages — one implementation on disk, two consumers:
+## Shared business logic
 
-```python
-from agent.graph import run_agent   # used by both app.py and purch/*
-from db.models import insert_transaction
-from llm.extraction import CATEGORIES
+The canonical Reflex shell imports shared framework-independent code directly from `agent/`, `llm/`, and `db/`. There should be only one implementation of the conversation graph, extraction helpers, intent classification, safety checks, and core data-model operations. New Reflex code belongs under `purch/` and should not create another application package or duplicate page/state/component trees.
+
+## Supabase and PostgreSQL integration
+
+The project already contains a PostgreSQL path intended for the Supabase database:
+
+- `purch/db_backend.py` uses SQLAlchemy and reads `REFLEX_DB_URL` first, then `DB_URL`.
+- `purch/supabase_auth.py` uses `SUPABASE_URL` and `SUPABASE_KEY` to create the Supabase client.
+- `purch/backend.py` selects the PostgreSQL adapter when a supported database URL is present.
+- `purch/states/analytics_state.py` and `purch/wallet_backend.py` use the backend selection to access PostgreSQL-aware operations.
+
+The repository intentionally does not contain a private Supabase project URL, database password, or API key. Configure those values as deployment secrets. The public repository links to the relevant implementation files: [`purch/db_backend.py`](https://github.com/Vanz15/chat-based-budget-tracker/blob/cleanup/reflex-only-vercel-ready/purch/db_backend.py), [`purch/supabase_auth.py`](https://github.com/Vanz15/chat-based-budget-tracker/blob/cleanup/reflex-only-vercel-ready/purch/supabase_auth.py), and [`purch/states/auth_state.py`](https://github.com/Vanz15/chat-based-budget-tracker/blob/cleanup/reflex-only-vercel-ready/purch/states/auth_state.py).
+
+The local SQLite path remains useful as a compatibility and development fallback, but production should use the Supabase/PostgreSQL path. Database initialization and schema changes should be managed deliberately rather than running destructive DDL during application startup.
+
+## Vercel deployment position
+
+Reflex produces a frontend and a backend with different runtime responsibilities. The official Reflex documentation explains that the compiled frontend can be deployed to a static host such as Vercel, while the backend must be deployed separately. The initial production topology is therefore:
+
+```text
+Vercel static frontend
+        │
+        │ API_URL / event WebSocket URL
+        ▼
+Separate Reflex backend service
+        │
+        ├── Supabase authentication
+        ├── Groq/LLM services
+        └── Supabase PostgreSQL
 ```
 
-When phase 3 wires the real chat loop, `purch.states.chat_state.ChatState`
-will call:
+The relevant official documentation is [Reflex CLI export](https://reflex.dev/docs/api-reference/cli/), [Reflex self-hosting](https://reflex.dev/docs/hosting/self-hosting/), [Vercel Python Functions](https://vercel.com/docs/functions/runtimes/python), and [Vercel WebSockets](https://vercel.com/docs/functions/websockets). Vercel's Python and WebSocket capabilities make a direct backend experiment possible, but Reflex-specific compatibility is not assumed. The default plan is to deploy the static frontend on Vercel and use a long-running, WebSocket-capable service for the Reflex backend.
 
-- `agent.graph.run_agent(user_id, message)` — the whole graph in one
-  call, exactly as `app.py` already does.
-- `db.models.*` — insert/query/update transactions, budgets, log.
-- `llm.extraction.CATEGORIES` — canonical category list.
-- `llm.tone.VALID_TONES` — canonical tone list.
-- `db.connection.init_db` / `ensure_user` — startup + per-login.
+Export the frontend with the public backend URL available at build time:
 
-No changes to any of these files were made during normalization.
+```bash
+API_URL=https://backend.example.com reflex export --frontend-only
+```
 
-## Deployment refactor needs
+The backend must expose its event/WebSocket endpoints at the URL baked into the export. If a reverse proxy places the backend under a subpath, configure Reflex's `backend_path` rather than relying on ad hoc request rewriting. The Vercel project should receive only public frontend configuration and non-secret build settings; database, Supabase, Groq, and backend secrets belong to the backend service.
 
-Streamlit and Reflex differ meaningfully at deploy time:
+## Deployment hardening checklist
 
-| Concern              | Streamlit today                              | Reflex target                                            |
-|----------------------|----------------------------------------------|----------------------------------------------------------|
-| Process model        | Single Python process, thread-per-session    | Frontend (Next.js build) + backend (FastAPI/WebSocket)   |
-| Static assets        | Served inline                                | Compiled `assets/` served by the frontend                |
-| Env vars             | `.env` via `python-dotenv`                   | Same, but must be present at **both** build and run time |
-| Google OAuth         | `streamlit[auth]` + `st.login()`             | Custom — see §OAuth                                      |
-| State persistence    | `st.session_state` (in-memory, per session)  | `rx.State` subclasses (backend, per client)              |
-| DB filesystem access | Local `data/budget.db`                       | Local FS only works on single-node hosts                 |
+Before production deployment, verify that the backend has a stable public URL, the Vercel frontend uses the correct `API_URL`, Supabase OAuth redirect URLs include the deployed login callback, Supabase Row Level Security protects records by user identity, and the backend service supports Reflex's event WebSockets. Configure PostgreSQL connection pooling and avoid depending on ephemeral local filesystem state.
 
-## SQLite → Postgres / Supabase / Neon
+The project should also be checked for frontend build-time asset resolution, correct CORS and origin behavior, timezone handling, error logging, and secret redaction. A Vercel preview deployment should be tested against a non-production backend or controlled Supabase environment before promoting it.
 
-`db/connection.py` and `db/models.py` currently talk to SQLite via the
-stdlib `sqlite3` module. Fine for the Streamlit single-node deployment;
-blocks any horizontally-scaled Reflex deployment.
+## Remaining application work
 
-- **Schema-level:** `db/schema.sql` ports cleanly to Postgres with three
-  edits: `AUTOINCREMENT` → `GENERATED ALWAYS AS IDENTITY`,
-  `datetime('now')` → `now()`, timestamps become `TIMESTAMPTZ` (which
-  removes the `PH_OFFSET` hack in `to_local_time_str`).
-- **Query-level:** models use `?` positional placeholders (SQLite
-  style). Under Postgres these become `$1, $2, …` or `%s`. Best path is
-  to introduce SQLAlchemy Core and let it emit the right dialect.
-- **Supabase:** works via its Postgres endpoint; auth can be delegated
-  to Supabase Auth (which also gives us Google OAuth). Requires
-  row-level security policies keyed on `auth.uid()` matching
-  `transactions.user_id`.
-- **Neon:** drop-in Postgres.
+Structural cleanup is separate from feature completion. The remaining work should be tracked and implemented independently:
 
-Recommendation: introduce a `db/engine.py` that returns either
-the current SQLite connection or a Postgres SQLAlchemy engine based on
-`DATABASE_URL`, and keep the `db/models.py` function signatures
-identical so `agent/nodes.py` never notices the change.
+1. Complete the real agent integration in `ChatState` and verify transaction persistence through the PostgreSQL adapter.
+2. Complete authentication and OAuth callback behavior using the existing Supabase integration.
+3. Harden wallet, analytics, and budget flows against the Supabase schema and Row Level Security policies.
+4. Validate Reflex frontend export and deploy the frontend to Vercel.
+5. Deploy and observe the Reflex backend on a WebSocket-capable service.
+6. Optionally run a separate compatibility experiment for hosting the Reflex backend in Vercel Python/WebSocket Functions.
 
-## OAuth options
-
-Streamlit's `st.login()` handles OAuth inside the framework. Reflex has
-no equivalent — options:
-
-1. **`reflex-google-auth` / Authlib** — implement a
-   `/auth/google/callback` route in Reflex; store the user's email in
-   `AuthState`; mint a signed session cookie. Most work; keeps
-   everything in-process.
-2. **Supabase Auth** — if we migrate the DB to Supabase, delegate
-   OAuth entirely; hydrate `AuthState` from Supabase's JWT. Fastest
-   path; ties us to Supabase.
-3. **Clerk / Auth0** — hosted, drop-in, framework-agnostic. Overkill
-   for a single-provider (Google-only) flow but cleanest UX.
-
-The `/login` page's "Continue with Google" button already routes
-through `AuthState.begin_google_login`, which currently surfaces a
-friendly "not yet available" message — swap the body of that handler
-when the provider is chosen.
-
-## Remaining phases
-
-- **Phase 3 — Agent integration.** Call `backend.agent.graph.run_agent`
-  from `ChatState.send_message`; render assistant replies as bubbles;
-  propagate `pending_edit` / `pending_conversion` state; port the
-  budget-alert banner logic.
-- **Phase 4 — Sidebar / budgets / settings.** Total budget card,
-  per-category progress bars, tone picker, log-out. Rebuild
-  `ui/gauges.py` as `rx.el.svg` components.
-- **Phase 4 — Analytics.** Trend, category breakdown, month-over-month
-  cards using existing `db.models` helpers.
-- **DB migration.** SQLAlchemy + `DATABASE_URL` env switch.
-- **Timezone cleanup.** Drop the `PH_OFFSET` hack once timestamps are
-  `TIMESTAMPTZ`.
-- **Chat streaming.** Yield partial updates during LLM latency.
-- **Retire Streamlit shell.** Once parity is reached, move `app.py` /
-  `ui/` to `archive/`.
+Do not reintroduce Streamlit files or create another top-level Reflex package while completing these phases.

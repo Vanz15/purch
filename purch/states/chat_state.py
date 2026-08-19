@@ -1,6 +1,6 @@
 """Chat state — wired to the real LangGraph agent + SQLite backend.
 
-Message flow (mirrors the Streamlit `handle_user_input` in `app.py`):
+Message flow for the Reflex chat state:
 
 1.  If a currency conversion is pending and the user replied with a
     number, insert the transaction directly (no agent round-trip needed).
@@ -13,7 +13,7 @@ Message flow (mirrors the Streamlit `handle_user_input` in `app.py`):
 
 The database and business logic are imported via `purch.backend`, which
 re-exports the root `agent/`, `llm/`, `db/` packages under a normalized
-namespace so nothing in the Streamlit fallback has to change.
+namespace so the application has one consistent business-logic boundary.
 """
 
 import asyncio

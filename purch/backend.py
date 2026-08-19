@@ -3,10 +3,9 @@
 Thin compatibility layer that (1) initializes the shared SQLite database
 once at import time so the Reflex process is ready to serve chat, and
 (2) re-exports the framework-agnostic business logic from the root
-`agent/`, `llm/`, `db/` packages under a normalized `purch.backend`
-namespace. The root packages remain the single source of truth — the
-Streamlit fallback (`app.py`) continues to import them directly and
-keeps working unchanged.
+`agent/`, `llm/`, `db/` packages under a normalized
+`purch.backend` namespace. The root packages remain the single source of truth
+for framework-independent business logic.
 """
 
 import logging
@@ -160,7 +159,7 @@ def format_transaction_timestamp(value: object, timezone_name: str = "") -> str:
 
 
 def classify_alert(text: str) -> str:
-    """Port of app.py::classify_alert — decides bubble border color."""
+    """Classify an assistant alert for the Reflex chat interface."""
     lower = text.lower()
     if "over your" in lower and "budget" in lower:
         return "danger"
