@@ -28,6 +28,7 @@ if _ROOT not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Header
 
 from app.routers import analytics, chat, tone, wallets, guest, transactions
 from app.services import bootstrap
@@ -72,6 +73,41 @@ app.include_router(analytics.router)
 app.include_router(tone.router)
 app.include_router(guest.router)
 app.include_router(transactions.router)
+
+
+# TEMPORARY diagnostic — decodes ONLY the public claims of the incoming
+# token (no secret handling, no token storage). Helps debug AUTH_REQUIRED.
+# Remove after the issue is resolved.
+@app.get("/_debug_token")
+async def debug_token(authorization: str | None = Header(None)):
+    from jose import jwt as _jwt
+    if not authorization or not authorization.startswith("Bearer "):
+        return {"ok": False, "reason": "no bearer"}
+    token = authorization.removeprefix("Bearer ").strip()
+    secret = os.environ.get("SUPABASE_JWT_SECRET", "")
+    out = {"secret_present": bool(secret), "secret_len": len(secret)}
+    # Decode WITHOUT verification to inspect claims (safe — no secret used).
+    try:
+        unverified = _jwt.get_unverified_claims(token)
+        out["claims"] = {
+            "iss": unverified.get("iss"),
+            "aud": unverified.get("aud"),
+            "email": unverified.get("email"),
+            "sub": unverified.get("sub"),
+            "exp": unverified.get("exp"),
+            "role": unverified.get("role"),
+        }
+    except Exception as e:
+        out["unverified_decode_error"] = str(e)
+    # Now attempt verified decode to report the exact failure.
+    if secret:
+        try:
+            _jwt.decode(token, secret, algorithms=["HS256"], audience="authenticated")
+            out["verified"] = True
+        except Exception as e:
+            out["verified"] = False
+            out["verify_error"] = str(e)
+    return out
 
 
 @app.get("/health")
