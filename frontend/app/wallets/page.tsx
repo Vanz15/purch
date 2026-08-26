@@ -5,6 +5,7 @@ import { RefreshCw, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { api, WalletRow, WalletCreate } from "@/lib/api";
 import { PageShell, eyebrow, primaryButton, outlineButton } from "@/lib/ui";
+import { ChatSidebar } from "@/components/ChatSidebar";
 import { isGuest } from "@/lib/guest";
 
 const WALLET_TYPES = ["Cash", "Bank", "Savings", "Debt", "Lent", "Borrowed", "E-wallet", "Investment"];
@@ -109,7 +110,7 @@ export default function WalletsPage() {
 
   if (!authed) {
     return (
-      <PageShell active="/wallets">
+      <PageShell active="/wallets" sidebar={<ChatSidebar />}>
         <div className="mx-auto max-w-md">
           <div className="rounded-lg p-8 text-center" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
             <h1 className="font-['Fraunces'] font-semibold text-3xl m-0 mb-2">Wallets</h1>
@@ -138,7 +139,7 @@ export default function WalletsPage() {
   const totalMag = Object.values(groups).reduce((s, g) => s + Math.abs(g.amt), 0) || 1;
 
   return (
-    <PageShell active="/wallets">
+    <PageShell active="/wallets" sidebar={<ChatSidebar />}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
         <div>

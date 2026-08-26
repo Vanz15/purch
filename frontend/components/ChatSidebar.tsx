@@ -1,83 +1,146 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { LogOut, RefreshCw } from "lucide-react";
+import { api, WalletRow, BudgetStatusRow, AnalyticsResponse } from "@/lib/api";
+import { createClient } from "@/lib/supabase/client";
+import { isGuest, guestName, clearGuest } from "@/lib/guest";
 
 const TONE_OPTIONS = ["neutral", "bestie", "sarcastic"];
 
-export interface ChatSidebarProps {
-  monthLabel: string;
-  spent: number;
-  budgetTotal: number;
-  budgets: {
-    category: string;
-    limit_amount: number;
-    spent: number;
-    pct: number;
-    remaining: number;
-    status: "on_track" | "near" | "over";
-  }[];
-  wallets: { name: string; balance: number; wallet_type: string }[];
-  tone: string;
-  onToneChange: (t: string) => void;
-  guestLabel: string;
-  onSignOut: () => void;
-}
+export function ChatSidebar() {
+  const router = useRouter();
+  const [monthLabel, setMonthLabel] = useState("This month");
+  const [spent, setSpent] = useState(0);
+  const [budgetTotal, setBudgetTotal] = useState(0);
+  const [budgets, setBudgets] = useState<BudgetStatusRow[]>([]);
+  const [wallets, setWallets] = useState<WalletRow[]>([]);
+  const [tone, setTone] = useState("neutral");
+  const [guestLabel, setGuestLabel] = useState("Guest");
+  const [loading, setLoading] = useState(false);
 
-export function ChatSidebar(props: ChatSidebarProps) {
-  const {
-    monthLabel,
-    spent,
-    budgetTotal,
-    budgets,
-    wallets,
-    tone,
-    onToneChange,
-    guestLabel,
-    onSignOut,
-  } = props;
+  async function load() {
+    setLoading(true);
+    try {
+      const [ana, w] = await Promise.all([api.analytics.get(0, 0), api.wallets.list(true)]);
+      const a: AnalyticsResponse = ana;
+      setMonthLabel(a.month_label || "This month");
+      setSpent(a.kpi.total ?? 0);
+      setBudgets(a.budgets ?? []);
+      setBudgetTotal((a.budgets ?? []).reduce((s, b) => s + (b.limit_amount || 0), 0));
+      setWallets((w.wallets || []).filter((x: WalletRow) => !x.is_archived));
+      try {
+        const t = await api.tone.get();
+        if (t?.tone) setTone(t.tone);
+      } catch {
+        /* tone optional */
+      }
+    } catch {
+      /* keep defaults */
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        const u = data.session.user;
+        setGuestLabel(
+          (u.user_metadata?.full_name as string | undefined) ||
+            (u.user_metadata?.name as string | undefined) ||
+            u.email ||
+            "Account"
+        );
+      } else if (isGuest()) {
+        setGuestLabel(guestName());
+      }
+    });
+    load();
+    const onRefresh = () => load();
+    window.addEventListener("purch:refresh-sidebar", onRefresh);
+    return () => window.removeEventListener("purch:refresh-sidebar", onRefresh);
+  }, []);
+
+  async function changeTone(t: string) {
+    setTone(t);
+    try {
+      await api.tone.set(t);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function signOut() {
+    const supabase = createClient();
+    supabase.auth.signOut().finally(() => {
+      clearGuest();
+      router.push("/login");
+    });
+  }
 
   const spentPct = budgetTotal > 0 ? Math.min((spent / budgetTotal) * 100, 100) : 0;
   const maxWallet = Math.max(1, ...wallets.map((w) => Math.abs(w.balance)));
 
   return (
-    <aside
-      className="hidden sm:flex w-[280px] shrink-0 flex-col text-[color:var(--purch-paper)] overflow-y-auto"
-      style={{ background: "var(--purch-ink)" }}
-    >
-      {/* Receipt-style total card */}
+    <aside className="w-full lg:w-[300px] lg:shrink-0 flex flex-col gap-4 bg-[color:var(--purch-bg)] overflow-y-auto p-4 lg:p-0 lg:bg-transparent">
+      {/* LIVE WALLET — the dark-brown receipt widget, large */}
       <div
-        className="purch-receipt-header"
-        style={{ background: "transparent", borderBottom: "1px dashed rgba(248,243,231,0.25)" }}
+        className="rounded-xl overflow-hidden shadow-[0_10px_30px_rgba(28,20,16,0.28)]"
+        style={{ background: "var(--purch-ink)" }}
       >
-        <span className="title" style={{ color: "var(--purch-gold)" }}>
-          {monthLabel.toUpperCase()} — TOTAL
-        </span>
-      </div>
-      <div className="px-5 py-4">
-        <div className="flex items-center justify-between mb-2 text-[12px]">
-          <span className="font-['JetBrains_Mono']">{spentPct.toFixed(0)}%</span>
-          <span className="font-['JetBrains_Mono']">
-            ₱{spent.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+        <div
+          className="flex items-center justify-between px-5 pt-4"
+          style={{ color: "var(--purch-gold)" }}
+        >
+          <span className="font-['JetBrains_Mono'] text-[11px] uppercase tracking-[0.14em]">
+            {monthLabel.toUpperCase()} — TOTAL
           </span>
+          <button
+            onClick={load}
+            aria-label="Refresh summary"
+            className="opacity-70 hover:opacity-100 transition-opacity"
+            style={{ color: "var(--purch-gold)" }}
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+          </button>
         </div>
-        <div className="h-2 rounded-full" style={{ background: "#3A2E26" }}>
-          <div
-            className="h-full rounded-full"
-            style={{
-              width: `${spentPct}%`,
-              background: spentPct >= 100 ? "var(--purch-rust)" : "var(--purch-gold)",
-            }}
-          />
+        <div className="px-5 pb-5 pt-2">
+          <div className="font-['JetBrains_Mono'] font-bold leading-none" style={{ color: "var(--purch-paper)" }}>
+            <span className="text-[28px] align-top mr-1" style={{ color: "var(--purch-gold)" }}>
+              ₱
+            </span>
+            <span className="text-[52px]">
+              {spent.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </span>
+          </div>
+          <div className="flex items-center justify-between mt-3 text-[11px]" style={{ color: "#B8AC9C" }}>
+            <span className="font-['JetBrains_Mono]">{spentPct.toFixed(0)}%</span>
+            <span className="font-['JetBrains_Mono]">
+              of ₱{budgetTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </span>
+          </div>
+          <div className="h-2.5 rounded-full mt-2" style={{ background: "#3A2E26" }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${spentPct}%`,
+                background: spentPct >= 100 ? "var(--purch-rust)" : "var(--purch-gold)",
+              }}
+            />
+          </div>
         </div>
       </div>
 
       {/* Budgets */}
-      <div className="px-5 pb-5">
+      <div className="rounded-xl border p-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
         <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-2">
           Budgets
         </div>
         {budgets.length === 0 ? (
-          <p className="text-[12.5px] leading-relaxed text-[#B8AC9C] italic">
+          <p className="text-[12.5px] leading-relaxed text-[color:var(--purch-taupe)] italic">
             No budgets set yet — try &quot;set food budget to 3000&quot; in chat.
           </p>
         ) : (
@@ -86,14 +149,14 @@ export function ChatSidebar(props: ChatSidebarProps) {
               <div key={i}>
                 <div className="flex justify-between text-[12.5px] mb-1">
                   <span className="font-semibold">{b.category}</span>
-                  <span className="font-['JetBrains_Mono] text-[color:var(--purch-gold)]">
+                  <span className="font-['JetBrains_Mono] text-[color:var(--purch-rust)]">
                     ₱{b.spent.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     <span className="text-[color:var(--purch-taupe)]">
                       /{b.limit_amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </span>
                   </span>
                 </div>
-                <div className="h-1.5 rounded-full" style={{ background: "#3A2E26" }}>
+                <div className="h-1.5 rounded-full" style={{ background: "var(--purch-line)" }}>
                   <div
                     className="h-full rounded-full"
                     style={{
@@ -119,12 +182,12 @@ export function ChatSidebar(props: ChatSidebarProps) {
       </div>
 
       {/* Spendable wallets */}
-      <div className="px-5 pb-5">
+      <div className="rounded-xl border p-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
         <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-2">
           Spendable wallets
         </div>
         {wallets.length === 0 ? (
-          <p className="text-[12.5px] leading-relaxed text-[#B8AC9C] italic">
+          <p className="text-[12.5px] leading-relaxed text-[color:var(--purch-taupe)] italic">
             No spendable wallets yet — add a Cash or Bank wallet to track what you can spend.
           </p>
         ) : (
@@ -135,11 +198,11 @@ export function ChatSidebar(props: ChatSidebarProps) {
                 <div key={i}>
                   <div className="flex justify-between items-baseline mb-1">
                     <span className="text-[12.5px] font-semibold">{w.name}</span>
-                    <span className="font-['JetBrains_Mono'] text-[12.5px] text-[color:var(--purch-pine)]">
+                    <span className="font-['JetBrains_Mono'] text-[12.5px]" style={{ color: "var(--purch-pine)" }}>
                       ₱{w.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </span>
                   </div>
-                  <div className="h-1.5 rounded-full" style={{ background: "#3A2E26" }}>
+                  <div className="h-1.5 rounded-full" style={{ background: "var(--purch-line)" }}>
                     <div
                       className="h-full rounded-full"
                       style={{ width: `${barPct}%`, background: "var(--purch-pine)" }}
@@ -153,22 +216,18 @@ export function ChatSidebar(props: ChatSidebarProps) {
       </div>
 
       {/* Tone */}
-      <div className="px-5 pb-5">
+      <div className="rounded-xl border p-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
         <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-2">
           Tone
         </div>
         <select
           value={tone}
-          onChange={(e) => onToneChange(e.target.value)}
+          onChange={(e) => changeTone(e.target.value)}
           className="w-full rounded-md px-3 py-2 text-[13px]"
-          style={{
-            background: "#2A201A",
-            color: "var(--purch-paper)",
-            border: "1px solid #3A2E26",
-          }}
+          style={{ background: "var(--purch-bg)", color: "var(--purch-ink)", border: "1px solid var(--purch-line-soft)" }}
         >
           {TONE_OPTIONS.map((t) => (
-            <option key={t} value={t} style={{ background: "#2A201A" }}>
+            <option key={t} value={t}>
               {t}
             </option>
           ))}
@@ -176,7 +235,7 @@ export function ChatSidebar(props: ChatSidebarProps) {
       </div>
 
       {/* Profile + sign out */}
-      <div className="mt-auto px-5 py-4 border-t flex items-center justify-between" style={{ borderColor: "rgba(248,243,231,0.15)" }}>
+      <div className="rounded-xl border p-4 flex items-center justify-between" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
         <div className="flex items-center gap-2.5">
           <div
             className="flex h-8 w-8 items-center justify-center rounded-full font-['Fraunces'] font-bold text-[13px]"
@@ -185,14 +244,14 @@ export function ChatSidebar(props: ChatSidebarProps) {
             P
           </div>
           <div className="leading-tight">
-            <div className="text-[13px] font-semibold">{guestLabel}</div>
+            <div className="text-[13px] font-semibold truncate max-w-[140px]">{guestLabel}</div>
             <div className="text-[10px] uppercase tracking-[0.08em] text-[color:var(--purch-taupe)]">
               Guest session
             </div>
           </div>
         </div>
         <button
-          onClick={onSignOut}
+          onClick={signOut}
           className="flex items-center gap-1 text-[12px] font-semibold"
           style={{ color: "var(--purch-rust)" }}
         >

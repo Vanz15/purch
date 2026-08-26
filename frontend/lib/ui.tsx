@@ -157,7 +157,7 @@ export function PageShell({
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-[color:var(--purch-bg)]">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-[color:var(--purch-bg)]">
       {sidebar && sidebarOpen && <>{sidebar}</>}
       <main className="flex-1 min-w-0 pb-16 sm:pb-0 flex flex-col">
         <TopBar
@@ -167,7 +167,7 @@ export function PageShell({
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen((o) => !o)}
         />
-        <div className="flex-1 px-6 py-8 sm:px-8">{children}</div>
+        <div className="flex-1 px-4 py-6 sm:px-8 sm:py-8">{children}</div>
       </main>
       <MobileNav active={active} />
     </div>

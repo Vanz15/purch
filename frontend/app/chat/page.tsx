@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { api, ChatMessage, ChatResponse, WalletRow, BudgetStatusRow, AnalyticsResponse } from "@/lib/api";
+import { api, ChatMessage, ChatResponse } from "@/lib/api";
 import {
   PageShell,
   primaryButton,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/ui";
 import { PerforatedEdge, ReceiptHeader } from "@/lib/receipt";
 import { ChatSidebar } from "@/components/ChatSidebar";
-import { isGuest, ensureGuest, guestName, clearGuest } from "@/lib/guest";
+import { isGuest, ensureGuest } from "@/lib/guest";
 
 const PROMPT_CHIPS = [
   "milk tea 85 cash",
@@ -41,55 +41,13 @@ export default function ChatPage() {
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sidebar live data
-  const [guestLabel, setGuestLabel] = useState("Guest");
-  const [monthLabel, setMonthLabel] = useState("This month");
-  const [spent, setSpent] = useState(0);
-  const [budgetTotal, setBudgetTotal] = useState(0);
-  const [budgets, setBudgets] = useState<BudgetStatusRow[]>([]);
-  const [wallets, setWallets] = useState<WalletRow[]>([]);
-  const [tone, setTone] = useState("neutral");
-
-  const loadSidebar = useCallback(async () => {
-    try {
-      const [ana, w] = await Promise.all([
-        api.analytics.get(0, 0),
-        api.wallets.list(true),
-      ]);
-      const a: AnalyticsResponse = ana;
-      setMonthLabel(a.month_label || "This month");
-      setSpent(a.kpi.total ?? 0);
-      setBudgets(a.budgets ?? []);
-      setBudgetTotal(
-        (a.budgets ?? []).reduce((s, b) => s + (b.limit_amount || 0), 0)
-      );
-      setWallets((w.wallets || []).filter((x: WalletRow) => !x.is_archived));
-      try {
-        const t = await api.tone.get();
-        if (t?.tone) setTone(t.tone);
-      } catch {
-        /* tone optional */
-      }
-    } catch {
-      /* sidebar stays at defaults */
-    }
-  }, []);
-
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
-        const u = data.session.user;
-        const name =
-          (u.user_metadata?.full_name as string | undefined) ||
-          (u.user_metadata?.name as string | undefined) ||
-          u.email ||
-          "Account";
-        setGuestLabel(name);
         setAuthed(true);
       } else if (isGuest()) {
         ensureGuest();
-        setGuestLabel(guestName());
         setAuthed(true);
       } else {
         setAuthed(false);
@@ -97,10 +55,6 @@ export default function ChatPage() {
       setReady(true);
     });
   }, []);
-
-  useEffect(() => {
-    if (authed) loadSidebar();
-  }, [authed, loadSidebar]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -141,7 +95,7 @@ export default function ChatPage() {
         setPendingWallet(res.pending_wallet);
         setWalletChoices(res.wallet_choices);
         setAwaitingWallet(res.awaiting_wallet);
-        loadSidebar(); // refresh budgets / wallets live
+        window.dispatchEvent(new Event("purch:refresh-sidebar")); // refresh sidebar live
       } catch (e: any) {
         if (e.message === "AUTH_REQUIRED") {
           setError("Please sign in (Google or email) to save your data. Guest mode can't reach the backend yet.");
@@ -152,7 +106,7 @@ export default function ChatPage() {
         setBusy(false);
       }
     },
-    [draft, busy, awaitingWallet, pendingWallet, walletChoices, loadSidebar]
+    [draft, busy, awaitingWallet, pendingWallet, walletChoices]
   );
 
   async function chooseWallet(id: number) {
@@ -176,29 +130,12 @@ export default function ChatPage() {
       setPendingWallet(null);
       setWalletChoices([]);
       setAwaitingWallet(false);
-      loadSidebar();
+      window.dispatchEvent(new Event("purch:refresh-sidebar"));
     } catch (e: any) {
       setError(e.message || "Wallet choice failed.");
     } finally {
       setBusy(false);
     }
-  }
-
-  async function changeTone(t: string) {
-    setTone(t);
-    try {
-      await api.tone.set(t);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function signOut() {
-    const supabase = createClient();
-    supabase.auth.signOut().finally(() => {
-      clearGuest();
-      router.push("/login");
-    });
   }
 
   if (!ready) {
@@ -232,7 +169,6 @@ export default function ChatPage() {
               <button
                 onClick={() => {
                   ensureGuest();
-                  setGuestLabel(guestName());
                   setAuthed(true);
                 }}
                 className={outlineButton}
@@ -248,22 +184,8 @@ export default function ChatPage() {
 
   const hasStarted = messages.length > 0;
 
-  const sidebarNode = (
-    <ChatSidebar
-      monthLabel={monthLabel}
-      spent={spent}
-      budgetTotal={budgetTotal}
-      budgets={budgets}
-      wallets={wallets}
-      tone={tone}
-      onToneChange={changeTone}
-      guestLabel={guestLabel}
-      onSignOut={signOut}
-    />
-  );
-
   return (
-    <PageShell active="/chat" sidebar={sidebarNode}>
+    <PageShell active="/chat" sidebar={<ChatSidebar />}>
       <div className="mx-auto max-w-[680px]">
         {error && (
           <div className="flex items-center gap-3 mb-4 p-3 rounded-lg border" style={{ borderColor: "var(--purch-rust)", background: "var(--purch-paper)" }}>
@@ -277,7 +199,7 @@ export default function ChatPage() {
           className="rounded-md overflow-hidden"
           style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}
         >
-          <ReceiptHeader title="Live receipt" tone={tone} />
+          <ReceiptHeader title="Live receipt" />
 
           <div className="px-5 py-4">
             {!hasStarted ? (

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { api, AnalyticsResponse } from "@/lib/api";
 import { PageShell, eyebrow, outlineButton } from "@/lib/ui";
+import { ChatSidebar } from "@/components/ChatSidebar";
 import { isGuest } from "@/lib/guest";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -76,7 +77,7 @@ export default function AnalyticsPage() {
 
   if (!authed) {
     return (
-      <PageShell active="/analytics">
+      <PageShell active="/analytics" sidebar={<ChatSidebar />}>
         <div className="mx-auto max-w-md">
           <div className="rounded-lg p-8 text-center" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
             <h1 className="font-['Fraunces'] font-semibold text-3xl m-0 mb-2">Analytics</h1>
@@ -90,7 +91,7 @@ export default function AnalyticsPage() {
 
   if (loading && !data) {
     return (
-      <PageShell active="/analytics">
+      <PageShell active="/analytics" sidebar={<ChatSidebar />}>
         <div className="animate-pulse h-40 rounded-2xl" style={{ background: "var(--purch-line)" }} />
       </PageShell>
     );
@@ -103,7 +104,7 @@ export default function AnalyticsPage() {
   const peak = d?.trend_peak ?? 0;
 
   return (
-    <PageShell active="/analytics">
+    <PageShell active="/analytics" sidebar={<ChatSidebar />}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
         <div>
