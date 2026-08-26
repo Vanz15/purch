@@ -131,7 +131,7 @@ export function PageShell({
   active?: string;
   sidebar?: React.ReactNode;
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [identity, setIdentity] = useState<{ label: string; isGuest: boolean }>({
     label: "",
     isGuest: false,

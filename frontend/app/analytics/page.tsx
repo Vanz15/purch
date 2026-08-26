@@ -160,7 +160,7 @@ export default function AnalyticsPage() {
             />
             <KpiCard
               label="Budget used"
-              value={<>&{(d?.budget_used_pct ?? 0).toFixed(0)}%</>}
+              value={`${(d?.budget_used_pct ?? 0).toFixed(0)}%`}
               note={(d?.budget_limit_total ?? 0) > 0 ? `₱${d?.budget_spent_total?.toLocaleString()} of ₱${d?.budget_limit_total?.toLocaleString()}` : "Set one in chat"}
               color={(d?.budget_used_pct ?? 0) >= 100 ? "var(--purch-rust)" : (d?.budget_used_pct ?? 0) >= 80 ? "var(--purch-gold)" : "var(--purch-ink)"}
             />
