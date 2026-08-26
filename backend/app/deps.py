@@ -14,11 +14,13 @@ import logging
 import os
 
 from fastapi import Header, HTTPException
-from jose import jwt, JWTError
+import jwt as pyjwt
 
 logger = logging.getLogger("purch.auth")
 
-SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
+# Sanitize: env vars pasted into dashboards often pick up a trailing newline
+# or stray whitespace, which breaks HS256 verification ("alg not allowed").
+SUPABASE_JWT_SECRET = (os.environ.get("SUPABASE_JWT_SECRET", "") or "").strip()
 
 
 async def get_current_user_id(authorization: str | None = Header(None)) -> str:
@@ -31,15 +33,13 @@ async def get_current_user_id(authorization: str | None = Header(None)) -> str:
         raise HTTPException(status_code=401, detail="Missing bearer token")
     token = authorization.removeprefix("Bearer ").strip()
     if not SUPABASE_JWT_SECRET:
-        # Misconfiguration on the server side, not a client error.
         logger.error("SUPABASE_JWT_SECRET is not set — cannot verify tokens")
         raise HTTPException(status_code=500, detail="Server auth not configured")
     try:
-        payload = jwt.decode(
+        payload = pyjwt.decode(
             token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated"
         )
     except Exception as e:
-        # Catches JWTError, DecodeError, ExpiredSignatureError, etc.
         logger.warning(f"JWT verification failed: {e}")
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
