@@ -75,20 +75,45 @@ app.include_router(guest.router)
 app.include_router(transactions.router)
 
 
-# TEMPORARY diagnostic — decodes ONLY the public claims of the incoming
-# token (no secret handling, no token storage). Helps debug AUTH_REQUIRED.
+# TEMPORARY diagnostic — decodes ONLY the public claims + header of the
+# incoming token (no secret storage). Reports a secret FINGERPRINT so we can
+# confirm Render's SUPABASE_JWT_SECRET matches the local one without exposing it.
 # Remove after the issue is resolved.
 @app.get("/_debug_token")
 async def debug_token(authorization: str | None = Header(None)):
-    from jose import jwt as _jwt
+    import hashlib
+    import jwt as pyjwt
+
     if not authorization or not authorization.startswith("Bearer "):
         return {"ok": False, "reason": "no bearer"}
     token = authorization.removeprefix("Bearer ").strip()
-    secret = os.environ.get("SUPABASE_JWT_SECRET", "")
-    out = {"secret_present": bool(secret), "secret_len": len(secret)}
-    # Decode WITHOUT verification to inspect claims (safe — no secret used).
+    secret = (os.environ.get("SUPABASE_JWT_SECRET", "") or "").strip()
+
+    # Fingerprint of the secret: first4:last4:sha256prefix (no secret revealed)
+    fp = (
+        secret[:4]
+        + ":"
+        + secret[-4:]
+        + ":"
+        + hashlib.sha256(secret.encode()).hexdigest()[:12]
+        if secret
+        else "EMPTY"
+    )
+    out = {
+        "secret_present": bool(secret),
+        "secret_len": len(secret),
+        "secret_fingerprint": fp,
+    }
+    # Token header (alg/typ) — no verification.
     try:
-        unverified = _jwt.get_unverified_claims(token)
+        header = pyjwt.get_unverified_header(token)
+        out["token_alg"] = header.get("alg")
+        out["token_typ"] = header.get("typ")
+    except Exception as e:
+        out["header_error"] = str(e)
+    # Claims (no verification).
+    try:
+        unverified = pyjwt.decode(token, options={"verify_signature": False})
         out["claims"] = {
             "iss": unverified.get("iss"),
             "aud": unverified.get("aud"),
@@ -99,10 +124,10 @@ async def debug_token(authorization: str | None = Header(None)):
         }
     except Exception as e:
         out["unverified_decode_error"] = str(e)
-    # Now attempt verified decode to report the exact failure.
+    # Verified decode — exact failure reason.
     if secret:
         try:
-            _jwt.decode(token, secret, algorithms=["HS256"], audience="authenticated")
+            pyjwt.decode(token, secret, algorithms=["HS256"], audience="authenticated")
             out["verified"] = True
         except Exception as e:
             out["verified"] = False

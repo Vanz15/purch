@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "jwt-decode": {
+      "source": "jsonwebtoken/jwt-skills",
+      "sourceType": "github",
+      "skillPath": "jwt-decode/SKILL.md",
+      "computedHash": "0d67e86147b49a5571a25fa6253d55380c0c915bc9c9649aac470eced75e3e54"
+    },
+    "jwt-encode": {
+      "source": "jsonwebtoken/jwt-skills",
+      "sourceType": "github",
+      "skillPath": "jwt-encode/SKILL.md",
+      "computedHash": "e5562b9c6ecf7f59abaca63d337a8b0b8d0ee9a0423e5f4e5cfe7fb5719a2efb"
+    },
+    "jwt-validate": {
+      "source": "jsonwebtoken/jwt-skills",
+      "sourceType": "github",
+      "skillPath": "jwt-validate/SKILL.md",
+      "computedHash": "c8a86f6afb1489576e0f489936ecb6120e84a851719dbc23f1e359c3124f4cec"
+    }
+  }
+}
