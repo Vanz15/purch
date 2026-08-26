@@ -4,14 +4,9 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { api, ChatMessage, ChatResponse } from "@/lib/api";
-import {
-  PageShell,
-  eyebrow,
-  displayHeading,
-  primaryButton,
-  outlineButton,
-} from "@/lib/ui";
+import { isGuest, ensureGuest, guestName } from "@/lib/guest";
 import { PerforatedEdge, ReceiptHeader } from "@/lib/receipt";
+import { PageShell, eyebrow, displayHeading, primaryButton, outlineButton } from "@/lib/ui";
 
 const PROMPT_CHIPS = [
   "milk tea 85 gcash",
@@ -42,7 +37,14 @@ export default function ChatPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
-      setAuthed(!!data.session);
+      if (data.session) {
+        setAuthed(true);
+      } else if (isGuest()) {
+        ensureGuest();
+        setAuthed(true);
+      } else {
+        setAuthed(false);
+      }
       setReady(true);
     });
   }, []);
@@ -87,7 +89,11 @@ export default function ChatPage() {
         setWalletChoices(res.wallet_choices);
         setAwaitingWallet(res.awaiting_wallet);
       } catch (e: any) {
-        setError(e.message || "Request failed.");
+        if (e.message === "AUTH_REQUIRED") {
+          setError("Please sign in (Google or email) to save your data. Guest mode can't reach the backend yet.");
+        } else {
+          setError(e.message || "Request failed.");
+        }
       } finally {
         setBusy(false);
       }
@@ -153,10 +159,7 @@ export default function ChatPage() {
               </a>
               <button
                 onClick={() => {
-                  const uuid = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
-                  localStorage.setItem("purch_user_email", `guest-${uuid}@purch.local`);
-                  localStorage.setItem("purch_user_name", `Guest ${uuid.slice(0, 6)}`);
-                  localStorage.setItem("purch_auth_method", "guest");
+                  ensureGuest();
                   setAuthed(true);
                 }}
                 className={outlineButton}

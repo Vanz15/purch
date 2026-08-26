@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { getGuestToken, isGuest } from "@/lib/guest";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -6,18 +7,30 @@ async function authedFetch(
   path: string,
   init: RequestInit = {}
 ): Promise<any> {
-  const supabase = createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string>),
   };
+
+  // 1) Prefer a real Supabase session token.
+  const supabase = createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (session) {
     headers["Authorization"] = `Bearer ${session.access_token}`;
+  } else if (isGuest()) {
+    // 2) Fall back to a guest JWT minted by the backend (same secret).
+    const guestToken = await getGuestToken();
+    if (guestToken) {
+      headers["Authorization"] = `Bearer ${guestToken}`;
+    }
   }
+
   const res = await fetch(`${API_URL}${path}`, { ...init, headers });
+  if (res.status === 401) {
+    throw new Error("AUTH_REQUIRED");
+  }
   if (!res.ok) {
     throw new Error(`API ${path} failed: ${res.status}`);
   }

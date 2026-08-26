@@ -148,6 +148,11 @@ export function MobileNav({ active }: { active?: string }) {
   );
 }
 
+import { useEffect, useState } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { guestName, isGuest } from "@/lib/guest";
+
 export function PageShell({
   children,
   active,
@@ -155,11 +160,40 @@ export function PageShell({
   children: React.ReactNode;
   active?: string;
 }) {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [identity, setIdentity] = useState<{ label: string; isGuest: boolean }>({
+    label: "",
+    isGuest: false,
+  });
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        const u = data.session.user;
+        const name =
+          (u.user_metadata?.full_name as string | undefined) ||
+          (u.user_metadata?.name as string | undefined) ||
+          u.email ||
+          "Account";
+        setIdentity({ label: name, isGuest: false });
+      } else if (isGuest()) {
+        setIdentity({ label: guestName(), isGuest: true });
+      } else {
+        setIdentity({ label: "Guest", isGuest: true });
+      }
+    });
+  }, []);
+
   return (
     <div className="flex min-h-screen bg-[color:var(--purch-bg)]">
-      <Sidebar active={active} />
+      {sidebarOpen && <Sidebar active={active} />}
       <main className="flex-1 min-w-0 pb-16 sm:pb-0 flex flex-col">
-        <TopBar />
+        <TopBar
+          identity={identity}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen((o) => !o)}
+        />
         <div className="flex-1 px-6 py-8 sm:px-8">{children}</div>
       </main>
       <MobileNav active={active} />
@@ -167,25 +201,41 @@ export function PageShell({
   );
 }
 
-export function TopBar() {
+function TopBar({
+  identity,
+  sidebarOpen,
+  onToggleSidebar,
+}: {
+  identity: { label: string; isGuest: boolean };
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+}) {
   return (
     <header className="flex items-center justify-between border-b border-[color:var(--purch-line)] bg-[color:var(--purch-paper)] px-7 py-3.5">
-      <Brand size="sm" />
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onToggleSidebar}
+          aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          className="hidden sm:flex items-center justify-center h-8 w-8 rounded-md text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] hover:bg-[color:var(--purch-bg)] transition-colors"
+        >
+          {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+        </button>
+        <Brand size="sm" showBeta={false} />
+      </div>
       <div className="flex items-center gap-2.5">
+        {identity.label && (
+          <span className="text-[13px] text-[color:var(--purch-ink)] max-w-[180px] truncate">
+            {identity.label}
+          </span>
+        )}
         <div
           className="flex h-7 w-7 items-center justify-center rounded-full font-['Fraunces'] font-bold text-[12px]"
           style={{ background: C.ink, color: C.gold }}
         >
           P
         </div>
-        <span className="text-[13px] text-[color:var(--purch-ink)]">Guest</span>
-        <span
-          className="text-[10px] rounded"
-          style={{ background: C.ink, color: C.paper, padding: "3px 8px" }}
-        >
-          GUEST
-        </span>
       </div>
     </header>
   );
 }
+
