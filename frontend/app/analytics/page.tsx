@@ -332,19 +332,19 @@ export default function AnalyticsPage() {
               <h3 className="font-['Fraunces'] font-semibold text-lg m-0">All transactions</h3>
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--purch-taupe)]" />
+                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--purch-taupe)]" />
                   <input
                     value={txQuery}
                     onChange={(e) => setTxQuery(e.target.value)}
                     placeholder="Search item or category…"
-                    className="rounded-lg pl-8 pr-3 py-2 text-[13px] bg-[color:var(--purch-paper)] w-full sm:w-[200px]"
+                    className="h-10 w-full rounded-lg pl-9 pr-3 text-[13px] bg-[color:var(--purch-paper)] sm:w-[220px]"
                     style={{ border: "1px solid var(--purch-line-soft)" }}
                   />
                 </div>
                 <select
                   value={txCategory}
                   onChange={(e) => setTxCategory(e.target.value)}
-                  className="rounded-lg px-3 py-2 text-[13px] font-semibold bg-[color:var(--purch-paper)]"
+                  className="h-10 rounded-lg px-3 text-[13px] font-semibold bg-[color:var(--purch-paper)]"
                   style={{ border: "1px solid var(--purch-line-soft)" }}
                 >
                   <option value="">All categories</option>
