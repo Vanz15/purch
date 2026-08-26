@@ -137,6 +137,14 @@ export function PageShell({
     isGuest: false,
   });
 
+  // On small screens the sidebar is a slide-in drawer (closed by default);
+  // on desktop it's a persistent left column (open by default).
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  }, []);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
@@ -157,8 +165,20 @@ export function PageShell({
   }, []);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-[color:var(--purch-bg)]">
-      {sidebar && sidebarOpen && <>{sidebar}</>}
+    <div className="flex min-h-screen bg-[color:var(--purch-bg)]">
+      {sidebar && sidebarOpen && (
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="lg:hidden fixed inset-0 z-40 bg-black/40"
+            onClick={() => setSidebarOpen((o) => !o)}
+          />
+          {/* Sidebar: static left column on lg+, slide-in drawer on mobile */}
+          <div className="fixed inset-y-0 left-0 z-50 w-[300px] max-w-[85%] overflow-y-auto lg:static lg:inset-auto lg:z-auto lg:w-[300px] lg:shrink-0 lg:max-w-none">
+            {sidebar}
+          </div>
+        </>
+      )}
       <main className="flex-1 min-w-0 pb-16 sm:pb-0 flex flex-col">
         <TopBar
           active={active}
