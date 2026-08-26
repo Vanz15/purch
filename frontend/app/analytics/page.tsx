@@ -159,7 +159,7 @@ export default function AnalyticsPage() {
         </div>
         <div className="flex gap-2.5 items-center">
           <select
-            value={`${year}-${month}`}
+            value={`${year}-${String(month).padStart(2, "0")}`}
             onChange={(e) => {
               const [ny, nm] = e.target.value.split("-").map(Number);
               setYear(ny);
