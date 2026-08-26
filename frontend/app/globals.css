@@ -1,26 +1,119 @@
-@import "tailwindcss";
+/* Purch — Espresso + Coral global theme tokens.
+   Mirrors assets/purch_theme.css from the legacy Reflex shell. */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap');
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --purch-dark: #1E1410;
+  --purch-dark-mid: #2E1E14;
+  --purch-ink: #1E1410;
+  --purch-parchment: #F7F2EB;
+  --purch-paper: #FDF9F4;
+  --purch-border: #E5DDD5;
+  --purch-muted: #9B8F82;
+  --purch-secondary-text: #6B5F52;
+
+  --purch-coral: #E8573C;
+  --purch-coral-light: #FF7A5C;
+  --purch-coral-shadow: rgba(232, 87, 60, 0.25);
+  --purch-teal: #4DBFB4;
+  --purch-teal-soft: rgba(77, 191, 180, 0.12);
+  --purch-gold: #F4C55A;
+  --purch-danger: #E63946;
+  --purch-amber: #F4A340;
+
+  --purch-radius-sm: 4px;
+  --purch-radius-md: 10px;
+  --purch-radius-lg: 16px;
+  --purch-radius-xl: 20px;
+  --purch-shadow-sm: 0 2px 4px rgba(30, 20, 16, 0.06);
+  --purch-shadow-md: 0 8px 24px rgba(30, 20, 16, 0.10);
+  --purch-shadow-bubble: 0 4px 12px rgba(30, 20, 16, 0.08);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--purch-parchment);
+  color: var(--purch-ink);
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
 }
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.font-display {
+  font-family: 'Playfair Display', ui-serif, Georgia, serif;
+  letter-spacing: -0.02em;
+}
+
+.font-mono-tab {
+  font-family: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--purch-border); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #D6C8B8; }
+
+.purch-bubble-assistant {
+  background: var(--purch-paper);
+  color: var(--purch-ink);
+  border: 1px solid var(--purch-border);
+  border-radius: var(--purch-radius-lg) var(--purch-radius-lg) var(--purch-radius-lg) var(--purch-radius-sm);
+  padding: 0.9rem 1.1rem;
+  box-shadow: var(--purch-shadow-bubble);
+}
+
+.purch-bubble-user {
+  background: var(--purch-dark);
+  color: var(--purch-parchment);
+  border-radius: var(--purch-radius-lg) var(--purch-radius-lg) var(--purch-radius-sm) var(--purch-radius-lg);
+  padding: 0.85rem 1.1rem;
+  box-shadow: 0 4px 14px rgba(30, 20, 16, 0.18);
+}
+
+.purch-card {
+  background: var(--purch-paper);
+  border: 1px solid var(--purch-border);
+  border-radius: var(--purch-radius-lg);
+  box-shadow: var(--purch-shadow-sm);
+}
+
+.purch-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  background: var(--purch-dark-mid);
+  color: var(--purch-parchment);
+}
+
+.purch-beta-badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  background: var(--purch-teal-soft);
+  color: var(--purch-teal);
+  font-size: 0.6rem;
+  font-weight: 700;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+@keyframes purch-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.purch-rise { animation: purch-rise 0.4s ease-out; }
