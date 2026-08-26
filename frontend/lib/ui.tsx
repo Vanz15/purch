@@ -214,7 +214,7 @@ function TopBar({
           <button
             onClick={onToggleSidebar}
             aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            className="hidden sm:flex items-center justify-center h-8 w-8 rounded-md text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] hover:bg-[color:var(--purch-bg)] transition-colors"
+            className="flex items-center justify-center h-8 w-8 rounded-md text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] hover:bg-[color:var(--purch-bg)] transition-colors"
           >
             {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
           </button>

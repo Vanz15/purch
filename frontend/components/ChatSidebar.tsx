@@ -85,17 +85,17 @@ export function ChatSidebar() {
   const maxWallet = Math.max(1, ...wallets.map((w) => Math.abs(w.balance)));
 
   return (
-    <aside className="w-full lg:w-[300px] lg:shrink-0 flex flex-col gap-4 bg-[color:var(--purch-bg)] overflow-y-auto p-4 lg:p-0 lg:bg-transparent">
+    <aside className="w-full lg:w-[280px] lg:shrink-0 flex flex-col gap-3 bg-[color:var(--purch-bg)] overflow-y-auto p-3 lg:p-0 lg:bg-transparent lg:h-screen lg:sticky lg:top-0">
       {/* LIVE WALLET — the dark-brown receipt widget, large */}
       <div
         className="rounded-xl overflow-hidden shadow-[0_10px_30px_rgba(28,20,16,0.28)]"
         style={{ background: "var(--purch-ink)" }}
       >
         <div
-          className="flex items-center justify-between px-5 pt-4"
+          className="flex items-center justify-between px-4 pt-2.5"
           style={{ color: "var(--purch-gold)" }}
         >
-          <span className="font-['JetBrains_Mono'] text-[11px] uppercase tracking-[0.14em]">
+          <span className="font-['JetBrains_Mono'] text-[10px] uppercase tracking-[0.12em]">
             {monthLabel.toUpperCase()} — TOTAL
           </span>
           <button
@@ -104,19 +104,19 @@ export function ChatSidebar() {
             className="opacity-70 hover:opacity-100 transition-opacity"
             style={{ color: "var(--purch-gold)" }}
           >
-            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
-        <div className="px-5 pb-5 pt-2">
+        <div className="px-4 pb-3 pt-1.5">
           <div className="font-['JetBrains_Mono'] font-bold leading-none" style={{ color: "var(--purch-paper)" }}>
-            <span className="text-[28px] align-top mr-1" style={{ color: "var(--purch-gold)" }}>
+            <span className="text-[18px] align-top mr-1" style={{ color: "var(--purch-gold)" }}>
               ₱
             </span>
-            <span className="text-[52px]">
+            <span className="text-[32px]">
               {spent.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
           </div>
-          <div className="flex items-center justify-between mt-3 text-[11px]" style={{ color: "#B8AC9C" }}>
+          <div className="flex items-center justify-between mt-2.5 text-[10px]" style={{ color: "#B8AC9C" }}>
             <span className="font-['JetBrains_Mono]">{spentPct.toFixed(0)}%</span>
             <span className="font-['JetBrains_Mono]">
               of ₱{budgetTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -135,19 +135,19 @@ export function ChatSidebar() {
       </div>
 
       {/* Budgets */}
-      <div className="rounded-xl border p-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
-        <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-2">
+      <div className="rounded-xl border p-2.5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+        <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-1.5">
           Budgets
         </div>
         {budgets.length === 0 ? (
-          <p className="text-[12.5px] leading-relaxed text-[color:var(--purch-taupe)] italic">
+          <p className="text-[12px] leading-relaxed text-[color:var(--purch-taupe)] italic">
             No budgets set yet — try &quot;set food budget to 3000&quot; in chat.
           </p>
         ) : (
           <div className="flex flex-col gap-3">
             {budgets.map((b, i) => (
               <div key={i}>
-                <div className="flex justify-between text-[12.5px] mb-1">
+                <div className="flex justify-between text-[12px] mb-1">
                   <span className="font-semibold">{b.category}</span>
                   <span className="font-['JetBrains_Mono] text-[color:var(--purch-rust)]">
                     ₱{b.spent.toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -182,12 +182,12 @@ export function ChatSidebar() {
       </div>
 
       {/* Spendable wallets */}
-      <div className="rounded-xl border p-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
-        <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-2">
+      <div className="rounded-xl border p-2.5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+        <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-1.5">
           Spendable wallets
         </div>
         {wallets.length === 0 ? (
-          <p className="text-[12.5px] leading-relaxed text-[color:var(--purch-taupe)] italic">
+          <p className="text-[12px] leading-relaxed text-[color:var(--purch-taupe)] italic">
             No spendable wallets yet — add a Cash or Bank wallet to track what you can spend.
           </p>
         ) : (
@@ -197,7 +197,7 @@ export function ChatSidebar() {
               return (
                 <div key={i}>
                   <div className="flex justify-between items-baseline mb-1">
-                    <span className="text-[12.5px] font-semibold">{w.name}</span>
+                    <span className="text-[12px] font-semibold">{w.name}</span>
                     <span className="font-['JetBrains_Mono'] text-[12.5px]" style={{ color: "var(--purch-pine)" }}>
                       ₱{w.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </span>
@@ -216,14 +216,14 @@ export function ChatSidebar() {
       </div>
 
       {/* Tone */}
-      <div className="rounded-xl border p-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
-        <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-2">
+      <div className="rounded-xl border p-2.5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+        <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-1.5">
           Tone
         </div>
         <select
           value={tone}
           onChange={(e) => changeTone(e.target.value)}
-          className="w-full rounded-md px-3 py-2 text-[13px]"
+          className="w-full rounded-md px-3 py-1.5 text-[12.5px]"
           style={{ background: "var(--purch-bg)", color: "var(--purch-ink)", border: "1px solid var(--purch-line-soft)" }}
         >
           {TONE_OPTIONS.map((t) => (
@@ -235,10 +235,10 @@ export function ChatSidebar() {
       </div>
 
       {/* Profile + sign out */}
-      <div className="rounded-xl border p-4 flex items-center justify-between" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+      <div className="rounded-xl border p-3 flex items-center justify-between" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
         <div className="flex items-center gap-2.5">
           <div
-            className="flex h-8 w-8 items-center justify-center rounded-full font-['Fraunces'] font-bold text-[13px]"
+            className="flex h-7 w-7 items-center justify-center rounded-full font-['Fraunces'] font-bold text-[12px]"
             style={{ background: "var(--purch-gold)", color: "var(--purch-ink)" }}
           >
             P
