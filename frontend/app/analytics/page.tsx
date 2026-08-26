@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { api, AnalyticsResponse } from "@/lib/api";
 import { PageShell, eyebrow, outlineButton } from "@/lib/ui";
+import { isGuest } from "@/lib/guest";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -44,10 +45,14 @@ export default function AnalyticsPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: s }) => {
-      if (!s.session) setAuthed(false);
-      else {
+      if (s.session) {
         setAuthed(true);
         load(0, 0);
+      } else if (isGuest()) {
+        setAuthed(true);
+        load(0, 0);
+      } else {
+        setAuthed(false);
       }
     });
   }, [load]);

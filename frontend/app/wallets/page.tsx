@@ -5,6 +5,7 @@ import { RefreshCw, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { api, WalletRow, WalletCreate } from "@/lib/api";
 import { PageShell, eyebrow, primaryButton, outlineButton } from "@/lib/ui";
+import { isGuest } from "@/lib/guest";
 
 const WALLET_TYPES = ["Cash", "Bank", "Savings", "Debt", "Lent", "Borrowed", "E-wallet", "Investment"];
 
@@ -46,10 +47,14 @@ export default function WalletsPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) setAuthed(false);
-      else {
+      if (data.session) {
         setAuthed(true);
         load();
+      } else if (isGuest()) {
+        setAuthed(true);
+        load();
+      } else {
+        setAuthed(false);
       }
     });
   }, [load]);

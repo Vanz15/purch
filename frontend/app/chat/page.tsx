@@ -39,6 +39,7 @@ export default function ChatPage() {
   const [walletChoices, setWalletChoices] = useState<any[]>([]);
   const [awaitingWallet, setAwaitingWallet] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Sidebar live data
   const [guestLabel, setGuestLabel] = useState("Guest");
@@ -300,7 +301,10 @@ export default function ChatPage() {
                   {PROMPT_CHIPS.map((c) => (
                     <button
                       key={c}
-                      onClick={() => send(c)}
+                      onClick={() => {
+                        setDraft(c);
+                        inputRef.current?.focus();
+                      }}
                       className="text-[12.5px] px-3.5 py-1.5 rounded-[20px] cursor-pointer"
                       style={{ border: "1px solid var(--purch-line-soft)", background: "var(--purch-paper)", color: "var(--purch-ink)" }}
                     >
@@ -376,6 +380,7 @@ export default function ChatPage() {
           ) : (
             <div className="px-5 pb-4 flex gap-2.5">
               <input
+                ref={inputRef}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 disabled={busy}

@@ -320,6 +320,31 @@ def _apply_wallet_for_last_tx(user_id: str, prompt: str, tx: dict) -> str:
     return ""  # caller parks the tx and returns wallet chips
 
 
+def _default_cash_for_last_tx(user_id: str, tx: dict) -> str:
+    """No wallets exist yet: log the purchase against a Cash wallet by default
+    so balances stay meaningful, without forcing the user to pick one."""
+    try:
+        wallets = wallet_backend.list_wallets(user_id) if wallet_backend.available() else []
+        cash = next(
+            (w for w in wallets if str(w.get("wallet_type", "")).lower() == "cash"
+             or str(w.get("name", "")).lower() == "cash"),
+            None,
+        )
+        if cash is None:
+            wid = wallet_backend.create_wallet(user_id, "Cash", "Cash", 0.0, "Default cash wallet")
+        else:
+            wid = cash["id"]
+        updated = wallet_backend.apply_purchase(
+            user_id, int(wid), float(tx.get("amount") or 0),
+            str(tx.get("item") or "purchase"), int(tx.get("transaction_id") or 0) or None,
+        )
+        if updated is not None:
+            return f"💰 Logged to Cash — ₱{wallet_backend.money(updated['balance'])} balance."
+    except Exception as e:
+        logger.exception(f"default cash wallet failed: {e}")
+    return "Logged as cash (no wallet set up yet — add one anytime to track balances)."
+
+
 # --------------------------------------------------------------------------- #
 # Routes
 # --------------------------------------------------------------------------- #
@@ -490,19 +515,24 @@ async def send_message(req: ChatRequest, user_id: str = Depends(get_current_user
         if wallet_note:
             response_text = f"{response_text}\n\n{wallet_note}"
         else:
-            pending_wallet_resp = {
-                "transaction_id": last_tx["transaction_id"],
-                "amount": last_tx["amount"],
-                "item": last_tx["item"],
-            }
             wallets = wallet_backend.list_wallets(user_id) if wallet_backend.available() else []
-            wallet_choices = _wallet_choice_payload(wallets)
-            awaiting_wallet = True
-            response_text = (
-                f"{response_text}\n\n"
-                "Which wallet did this come from? Tap one below to finish "
-                "logging it — a wallet is required."
-            )
+            if not wallets:
+                # No wallets yet → default the purchase to a Cash wallet; no gate.
+                wallet_note = _default_cash_for_last_tx(user_id, last_tx)
+                response_text = f"{response_text}\n\n{wallet_note}"
+            else:
+                pending_wallet_resp = {
+                    "transaction_id": last_tx["transaction_id"],
+                    "amount": last_tx["amount"],
+                    "item": last_tx["item"],
+                }
+                wallet_choices = _wallet_choice_payload(wallets)
+                awaiting_wallet = True
+                response_text = (
+                    f"{response_text}\n\n"
+                    "Which wallet did this come from? Tap one below to finish "
+                    "logging it — a wallet is required."
+                )
 
     alert = backend.classify_alert(response_text)
 
