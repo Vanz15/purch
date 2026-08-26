@@ -52,7 +52,7 @@ async def list_transactions(
         with engine.connect() as conn:
             rows = conn.execute(
                 text(
-                    f"SELECT transaction_id, item, amount, category, tx_timestamp "
+                    f"SELECT id, item, amount, category, tx_timestamp "
                     f"FROM transactions WHERE {where} "
                     f"ORDER BY tx_timestamp DESC LIMIT :lim"
                 ),
@@ -91,6 +91,7 @@ async def list_transactions(
                 amount_display=backend.money(amt) if hasattr(backend, "money") else f"₱{amt:.2f}",
                 category=str(r[3] or ""),
                 tx_timestamp=_fmt(r[4]),
+                wallet=str(r[5]) if len(r) > 5 else "",
             )
         )
     return {
