@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { api, AnalyticsResponse } from "@/lib/api";
+import { api, AnalyticsResponse, TransactionRow } from "@/lib/api";
 import { PageShell, eyebrow, outlineButton } from "@/lib/ui";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { isGuest } from "@/lib/guest";
@@ -29,6 +29,18 @@ export default function AnalyticsPage() {
   const [error, setError] = useState("");
   const [year, setYear] = useState(0);
   const [month, setMonth] = useState(0);
+  const [txs, setTxs] = useState<TransactionRow[]>([]);
+  const [txCategory, setTxCategory] = useState<string>("");
+  const [txQuery, setTxQuery] = useState<string>("");
+
+  const loadTransactions = useCallback(async (cat: string, q: string) => {
+    try {
+      const data = await api.transactions.list({ category: cat || null, q: q || null, limit: 200 });
+      setTxs(data.transactions || []);
+    } catch {
+      /* transactions optional */
+    }
+  }, []);
 
   const load = useCallback(async (y: number, m: number) => {
     setLoading(true);
@@ -49,14 +61,16 @@ export default function AnalyticsPage() {
       if (s.session) {
         setAuthed(true);
         load(0, 0);
+        loadTransactions("", "");
       } else if (isGuest()) {
         setAuthed(true);
         load(0, 0);
+        loadTransactions("", "");
       } else {
         setAuthed(false);
       }
     });
-  }, [load]);
+  }, [load, loadTransactions]);
 
   function shift(delta: number) {
     setMonth((m) => {
@@ -123,16 +137,23 @@ export default function AnalyticsPage() {
           </h1>
         </div>
         <div className="flex gap-2.5 items-center">
-          <div className="flex items-center gap-2 rounded-lg border px-3.5 py-2.5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
-            <ChevronLeft size={14} className="cursor-pointer" onClick={() => shift(-1)} />
-            <span className="text-[13px] font-semibold">{monthLabel}</span>
-            <ChevronRight size={14} className="cursor-pointer" onClick={() => shift(1)} />
-          </div>
-          {(year !== 0 || month !== 0) && (
-            <button onClick={resetMonth} disabled={loading} className={`${outlineButton} text-[13px] disabled:opacity-60`}>
-              This month
-            </button>
-          )}
+          <select
+            value={`${year}-${month}`}
+            onChange={(e) => {
+              const [ny, nm] = e.target.value.split("-").map(Number);
+              setYear(nm === 0 ? 0 : ny);
+              setMonth(nm);
+              load(nm === 0 ? 0 : ny, nm);
+            }}
+            className="rounded-lg border px-3.5 py-2.5 text-[13px] font-semibold bg-[color:var(--purch-paper)]"
+            style={{ borderColor: "var(--purch-line)" }}
+          >
+            <option value="0-0">This month{monthLabel && monthLabel !== "This month" ? ` (${monthLabel})` : ""}</option>
+            {(d?.available_months || []).map((m) => {
+              const [my, mm] = m.split("-").map(Number);
+              return <option key={m} value={`${my}-${mm}`}>{MONTHS[mm - 1]} {my}</option>;
+            })}
+          </select>
           <button onClick={() => load(year, month)} disabled={loading} className={`${outlineButton} text-[13px] disabled:opacity-60`}>
             <RefreshCw size={14} /> Refresh
           </button>

@@ -223,9 +223,20 @@ async def get_analytics(year: int = 0, month: int = 0, user_id: str = Depends(ge
                 ),
                 {**window, "lim": _RECENT_LIMIT},
             ).all()
-        return kpi_row, cat_rows, trend_rows, budget_rows, recent_rows
 
-    kpi_row, cat_rows, trend_rows, budget_rows, recent_rows = _cached_analytics(
+            # Distinct months that have transactions (for the month navigator).
+            months_rows = conn.execute(
+                text(
+                    "SELECT DISTINCT TO_CHAR(tx_timestamp, 'YYYY-MM') AS ym "
+                    "FROM transactions WHERE user_id = :uid "
+                    "ORDER BY ym DESC"
+                ),
+                {"uid": user_id},
+            ).all()
+            available_months = [str(r[0]) for r in months_rows]
+        return kpi_row, cat_rows, trend_rows, budget_rows, recent_rows, available_months
+
+    kpi_row, cat_rows, trend_rows, budget_rows, recent_rows, available_months = _cached_analytics(
         user_id, year, month, _run_queries
     )
 
@@ -288,5 +299,6 @@ async def get_analytics(year: int = 0, month: int = 0, user_id: str = Depends(ge
         "top_category": top_category,
         "top_category_amount": top_category_amount,
         "month_label": month_start.strftime("%B %Y"),
+        "available_months": available_months,
         "unavailable": False,
     }

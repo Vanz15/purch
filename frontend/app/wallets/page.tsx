@@ -29,6 +29,7 @@ export default function WalletsPage() {
   const [loading, setLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<WalletCreate>({ name: "", wallet_type: "Cash", balance: "", note: "" });
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -68,12 +69,17 @@ export default function WalletsPage() {
     }
     setLoading(true);
     try {
-      await api.wallets.create(form);
+      if (editingId != null) {
+        await api.wallets.update(editingId, form);
+        setEditingId(null);
+      } else {
+        await api.wallets.create(form);
+      }
       setForm({ name: "", wallet_type: "Cash", balance: "", note: "" });
       setFormOpen(false);
       await load();
     } catch (e: any) {
-      setError(e.message || "Failed to create wallet.");
+      setError(e.message || (editingId != null ? "Failed to update wallet." : "Failed to create wallet."));
     } finally {
       setLoading(false);
     }
@@ -173,7 +179,7 @@ export default function WalletsPage() {
           <button onClick={load} disabled={loading} className={`${outlineButton} text-[13px] disabled:opacity-60`}>
             <RefreshCw size={14} /> Refresh
           </button>
-          <button onClick={() => setFormOpen((o) => !o)} className={`${primaryButton} text-[13px]`}>
+          <button onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "" }); setFormOpen((o) => !o); }} className={`${primaryButton} text-[13px]`}>
             <Plus size={14} /> New wallet
           </button>
         </div>
@@ -200,12 +206,14 @@ export default function WalletsPage() {
           <div className="font-['JetBrains_Mono'] text-[24px] mt-2" style={{ color: "var(--purch-pine)" }}>
             ₱{summary?.assets_display ?? "0.00"}
           </div>
+          <div className="text-xs text-[#B8AC9C] mt-1.5">Cash, bank, savings, and money you've lent out — what you own.</div>
         </div>
         <div className="rounded-lg p-5 border" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
           <div className={eyebrow}>Liabilities</div>
           <div className="font-['JetBrains_Mono'] text-[24px] mt-2" style={{ color: "var(--purch-rust)" }}>
             ₱{summary?.liabilities_display ?? "0.00"}
           </div>
+          <div className="text-xs text-[color:var(--purch-taupe)] mt-1.5">Debts and money you've borrowed — what you owe.</div>
         </div>
       </div>
 
@@ -221,11 +229,13 @@ export default function WalletsPage() {
           {(["Debit", "Lent", "Borrowed"] as const).map((g) => {
             const pct = Math.round((Math.abs(groups[g].amt) / totalMag) * 100);
             const color = GROUP_COLOR[g];
+            const groupWallets = active.filter((w) => groupOf(w.wallet_type) === g);
+            const groupTotal = groupWallets.reduce((s, w) => s + w.balance, 0) || 1;
             return (
               <div key={g} className="rounded-md p-4" style={{ background: "var(--purch-bg)" }}>
                 <div className="flex justify-between items-center mb-1.5">
                   <span className="font-semibold text-sm">{g}</span>
-                  <span className="font-['JetBrains_Mono'] text-[13.5px]" style={{ color }}>
+                  <span className="font-['JetBrains_Mono] text-[13.5px]" style={{ color }}>
                     ₱{groups[g].amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -236,8 +246,29 @@ export default function WalletsPage() {
                     ? "Money you're waiting on"
                     : "Debt, loan"}
                 </div>
-                <div className="h-1 rounded-full" style={{ background: "var(--purch-line)" }}>
+                <div className="h-1 rounded-full mb-3" style={{ background: "var(--purch-line)" }}>
                   <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+                </div>
+                {/* Per-wallet share of this group (no individual totals — shown above in wallet rows) */}
+                <div className="flex flex-col gap-2">
+                  {groupWallets.length === 0 ? (
+                    <div className="text-[11px] text-[color:var(--purch-taupe)] italic">No {g.toLowerCase()} wallets yet.</div>
+                  ) : (
+                    groupWallets.map((w) => {
+                      const wp = Math.round((w.balance / groupTotal) * 100);
+                      return (
+                        <div key={w.id}>
+                          <div className="flex justify-between text-[11.5px] mb-1">
+                            <span className="truncate max-w-[70%]">{w.name}</span>
+                            <span className="font-['JetBrains_Mono] text-[color:var(--purch-taupe)]">{wp}%</span>
+                          </div>
+                          <div className="h-1 rounded-full" style={{ background: "var(--purch-line)" }}>
+                            <div className="h-full rounded-full" style={{ width: `${wp}%`, background: color, opacity: 0.55 }} />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             );
@@ -248,6 +279,14 @@ export default function WalletsPage() {
       {/* Create form */}
       {formOpen && (
         <form onSubmit={submit} className="rounded-lg border p-5 mb-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-['Fraunces'] font-semibold text-lg m-0">{editingId != null ? "Edit wallet" : "New wallet"}</h3>
+            {editingId != null && (
+              <button type="button" onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "" }); setFormOpen(false); }} className="text-xs text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)]">
+                Cancel edit
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="flex flex-col gap-1">
               <span className={eyebrow}>Name</span>
@@ -296,7 +335,7 @@ export default function WalletsPage() {
           </div>
           <div className="flex gap-2 mt-4">
             <button type="submit" disabled={loading} className={`${primaryButton} text-sm disabled:opacity-60`}>
-              {loading ? "Saving…" : "Save wallet"}
+              {loading ? "Saving…" : editingId != null ? "Save changes" : "Save wallet"}
             </button>
             <button type="button" onClick={() => setFormOpen(false)} className={`${outlineButton} text-sm`}>
               Cancel
@@ -330,6 +369,9 @@ export default function WalletsPage() {
               <div className="flex items-center gap-4">
                 <span className="font-['JetBrains_Mono'] text-xl">₱{w.balance_display}</span>
                 <div className="flex gap-3 text-xs">
+                  <button onClick={() => { setForm({ name: w.name, wallet_type: w.wallet_type, balance: String(w.balance), note: w.note }); setEditingId(w.id); }} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-pine)] transition-colors">
+                    Edit
+                  </button>
                   <button onClick={() => archive(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">
                     Archive
                   </button>

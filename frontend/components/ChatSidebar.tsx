@@ -9,6 +9,14 @@ import { isGuest, guestName, clearGuest } from "@/lib/guest";
 
 const TONE_OPTIONS = ["neutral", "bestie", "sarcastic"];
 
+// Same Debit/Lent/Borrowed grouping the wallets page uses, so "spendable"
+// stays consistent and Lent/Borrowed/Debt never appear there.
+function groupOf(wt: string): "Debit" | "Lent" | "Borrowed" {
+  if (wt === "Lent") return "Lent";
+  if (wt === "Borrowed" || wt === "Debt") return "Borrowed";
+  return "Debit";
+}
+
 export function ChatSidebar() {
   const router = useRouter();
   const [monthLabel, setMonthLabel] = useState("This month");
@@ -16,6 +24,7 @@ export function ChatSidebar() {
   const [budgetTotal, setBudgetTotal] = useState(0);
   const [budgets, setBudgets] = useState<BudgetStatusRow[]>([]);
   const [wallets, setWallets] = useState<WalletRow[]>([]);
+  const [spendable, setSpendable] = useState<WalletRow[]>([]);
   const [tone, setTone] = useState("neutral");
   const [guestLabel, setGuestLabel] = useState("Guest");
   const [loading, setLoading] = useState(false);
@@ -30,6 +39,12 @@ export function ChatSidebar() {
       setBudgets(a.budgets ?? []);
       setBudgetTotal((a.budgets ?? []).reduce((s, b) => s + (b.limit_amount || 0), 0));
       setWallets((w.wallets || []).filter((x: WalletRow) => !x.is_archived));
+      // "Spendable" = only the Debit group (Cash/Bank/Savings/E-wallet/Investment).
+      // Lent/Borrowed/Debt are obligations, never spendable.
+      const spendable = (w.wallets || []).filter(
+        (x: WalletRow) => !x.is_archived && groupOf(x.wallet_type) === "Debit"
+      );
+      setSpendable(spendable);
       try {
         const t = await api.tone.get();
         if (t?.tone) setTone(t.tone);
@@ -82,7 +97,7 @@ export function ChatSidebar() {
   }
 
   const spentPct = budgetTotal > 0 ? Math.min((spent / budgetTotal) * 100, 100) : 0;
-  const maxWallet = Math.max(1, ...wallets.map((w) => Math.abs(w.balance)));
+  const maxWallet = Math.max(1, ...spendable.map((w) => Math.abs(w.balance)));
 
   return (
     <aside className="w-full lg:w-[280px] lg:shrink-0 flex flex-col gap-3 bg-[color:var(--purch-bg)] overflow-y-auto p-3 pt-5 lg:p-0 lg:pt-6 lg:px-7 lg:bg-transparent lg:h-screen lg:sticky lg:top-0">
@@ -190,13 +205,13 @@ export function ChatSidebar() {
         <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-1.5">
           Spendable wallets
         </div>
-        {wallets.length === 0 ? (
+        {spendable.length === 0 ? (
           <p className="text-[12px] leading-relaxed text-[color:var(--purch-taupe)] italic">
             No spendable wallets yet — add a Cash or Bank wallet to track what you can spend.
           </p>
         ) : (
           <div className="flex flex-col gap-3">
-            {wallets.map((w, i) => {
+            {spendable.map((w, i) => {
               const barPct = Math.min((Math.abs(w.balance) / maxWallet) * 100, 100);
               return (
                 <div key={i}>

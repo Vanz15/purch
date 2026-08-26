@@ -29,7 +29,7 @@ if _ROOT not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import analytics, chat, tone, wallets, guest
+from app.routers import analytics, chat, tone, wallets, guest, transactions
 from app.services import bootstrap
 
 logging.basicConfig(level=logging.INFO)
@@ -71,6 +71,7 @@ app.include_router(wallets.router)
 app.include_router(analytics.router)
 app.include_router(tone.router)
 app.include_router(guest.router)
+app.include_router(transactions.router)
 
 
 @app.get("/health")

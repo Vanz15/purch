@@ -69,6 +69,17 @@ export const api = {
   analytics: {
     get: (year = 0, month = 0) =>
       authedFetch(`/api/analytics?year=${year}&month=${month}`),
+    months: () => authedFetch(`/api/analytics?year=0&month=0`),
+  },
+  transactions: {
+    list: (opts: { category?: string | null; q?: string | null; limit?: number } = {}) => {
+      const params = new URLSearchParams();
+      if (opts.category) params.set("category", opts.category);
+      if (opts.q) params.set("q", opts.q);
+      if (opts.limit) params.set("limit", String(opts.limit));
+      const qs = params.toString();
+      return authedFetch(`/api/transactions${qs ? `?${qs}` : ""}`);
+    },
   },
   tone: {
     get: () => authedFetch("/api/tone"),
@@ -179,6 +190,16 @@ export interface RecentTx {
   tx_timestamp: string;
 }
 
+export interface TransactionRow {
+  transaction_id: number | null;
+  item: string;
+  amount: number;
+  amount_display: string;
+  category: string;
+  tx_timestamp: string;
+  wallet: string;
+}
+
 export interface AnalyticsResponse {
   kpi: KpiSnapshot;
   categories: CategoryRow[];
@@ -192,5 +213,6 @@ export interface AnalyticsResponse {
   top_category: string;
   top_category_amount: number;
   month_label: string;
+  available_months: string[];
   unavailable: boolean;
 }
