@@ -12,14 +12,18 @@ _MAX_ATTEMPTS = 2
 _BASE_DELAY_SECONDS = 0.35
 _MAX_SYSTEM_CHARS = 5200
 _MAX_USER_CHARS = 1600
+# Raise the per-call token ceiling so thinking models (e.g. qwen3.6) have room
+# for their <think> trace before the final answer.
+_MAX_OUTPUT_TOKENS = 2048
 
-_THINKING_MODELS = ("openai/gpt-oss-120b", "openai/gpt-oss-20b")
-_CONVERSATION_MODELS = ("llama-3.3-70b-versatile", "llama-3.1-8b-instant")
+_THINKING_MODELS = ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b")
+_CONVERSATION_MODELS = ("qwen/qwen3.6-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant")
 _MODEL_FALLBACKS = {
     _THINKING_MODELS[0]: _THINKING_MODELS,
     _THINKING_MODELS[1]: _THINKING_MODELS,
-    _CONVERSATION_MODELS[0]: _CONVERSATION_MODELS,
+    "qwen/qwen3.6-27b": ("qwen/qwen3.6-27b",),
     _CONVERSATION_MODELS[1]: _CONVERSATION_MODELS,
+    _CONVERSATION_MODELS[2]: _CONVERSATION_MODELS,
 }
 
 
@@ -99,9 +103,9 @@ class _SafeCompletions:
             request["messages"] = _trim_messages(messages)
 
         if "max_tokens" not in request:
-            request["max_tokens"] = 256 if request.get("tools") else 160
+            request["max_tokens"] = _MAX_OUTPUT_TOKENS if request.get("tools") else _MAX_OUTPUT_TOKENS
         elif isinstance(request["max_tokens"], int):
-            request["max_tokens"] = min(request["max_tokens"], 256)
+            request["max_tokens"] = min(request["max_tokens"], _MAX_OUTPUT_TOKENS)
 
         requested_model = request.get("model")
         models = _MODEL_FALLBACKS.get(requested_model, (requested_model,))
@@ -115,6 +119,7 @@ class _SafeCompletions:
             for attempt in range(_MAX_ATTEMPTS):
                 try:
                     response = self._create(*args, **model_request)
+                    response = _strip_thinking(response)
                     if _response_is_usable(
                         response,
                         has_tools=bool(request.get("tools")),
@@ -172,6 +177,37 @@ class _SafeClient:
         raw_completions = getattr(raw_chat, "completions")
         raw_create = getattr(raw_completions, "create")
         self.chat = _SafeChat(_SafeCompletions(raw_create))
+
+
+def _strip_thinking(response: object) -> object:
+    """Thinking models (e.g. qwen3.6) prefix the real answer with a
+    <think>...</think> trace. Strip that block so downstream callers and the
+    chat UI only see the final answer. Returns the (possibly mutated) response.
+    """
+    try:
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            return response
+        message = getattr(choices[0], "message", None)
+        if message is None:
+            return response
+        content = getattr(message, "content", None)
+        if not isinstance(content, str) or "<think>" not in content:
+            return response
+        # Keep only what follows the last </think> tag.
+        end_tag = "</think>"
+        idx = content.rfind(end_tag)
+        if idx != -1:
+            stripped = content[idx + len(end_tag):].strip()
+            if stripped:
+                message.content = stripped
+        else:
+            # Open tag with no close — drop the whole trace.
+            message.content = content.split("<think>", 1)[-1].strip()
+    except Exception:
+        # Never let stripping break a valid response.
+        return response
+    return response
 
 
 def _trim_messages(messages: list[object]) -> list[object]:

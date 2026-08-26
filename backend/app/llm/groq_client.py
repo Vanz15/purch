@@ -11,7 +11,7 @@ load_dotenv()
 #   where natural language quality (especially multilingual Taglish) matters
 #   more than raw extraction precision.
 THINKING_MODEL = "openai/gpt-oss-120b"
-CONVERSATION_MODEL = "llama-3.3-70b-versatile"
+CONVERSATION_MODEL = "qwen/qwen3.6-27b"
 
 _client = None
 
