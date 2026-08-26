@@ -1,14 +1,13 @@
-langgraph
-langchain-groq
-groq
-python-dotenv
-pytest
-python-dateutil
-supabase
-psycopg[binary]>=3.1.8
-geoalchemy2>=0.18
+# Core web + db
 fastapi
 uvicorn[standard]
 sqlalchemy>=2.0
 pydantic>=2
+psycopg[binary]>=3.1.8
 python-jose[cryptography]
+python-dotenv
+python-dateutil
+
+# LLM + agent pipeline
+groq
+langgraph
