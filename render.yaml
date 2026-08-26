@@ -1,0 +1,23 @@
+# Render blueprint — one-click backend deploy.
+# Usage: Render dashboard -> New -> Blueprint -> connect Vanz15/purch.
+# All secrets are set in the Render dashboard (never committed).
+services:
+  - type: web
+    name: purch-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: REFLEX_DB_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11"
