@@ -1,7 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+
+@import "tailwindcss";
+
+/* Tailwind v4 scans these dirs for utility classes (class fragments in
+   lib/ui.tsx are template-literal strings, so point the scanner at them). */
+@source "../app";
+@source "../lib";
+
 /* Purch — Espresso + Coral global theme tokens.
    Mirrors assets/purch_theme.css from the legacy Reflex shell. */
-
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap');
 
 :root {
   --purch-dark: #1E1410;
