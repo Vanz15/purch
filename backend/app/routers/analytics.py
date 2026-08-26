@@ -7,7 +7,6 @@ unavailable=True and skip the queries (SQLite date_trunc/INTERVAL aren't portabl
 """
 import logging
 from datetime import date, datetime, timedelta
-from functools import lru_cache
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel

@@ -168,21 +168,25 @@ export function PageShell({
     <div className="flex min-h-screen bg-[color:var(--purch-bg)]">
       {sidebar && (
         <>
-          {/* Mobile backdrop (only when open on mobile) */}
+          {/* Backdrop: click to close (mobile drawer). Hidden on desktop where
+              the column collapses via the toggle button instead. */}
           <div
             className={`lg:hidden fixed inset-0 z-40 bg-black/40 transition-opacity ${
               sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
             }`}
             onClick={() => setSidebarOpen(false)}
           />
-          {/* Sidebar: full-height sticky column on lg+, slide-in drawer on mobile.
-              Kept MOUNTED so toggling never resets its data. */}
+          {/* Sidebar: full-height sticky column on lg+ (collapses via width),
+              slide-in drawer on mobile. Kept MOUNTED so toggling never resets data. */}
           <div
             className={`fixed inset-y-0 left-0 z-50 w-[300px] max-w-[85%] overflow-y-auto
-              bg-[color:var(--purch-bg)] transition-transform duration-200 ease-out
-              lg:static lg:inset-auto lg:z-auto lg:w-[300px] lg:shrink-0 lg:max-w-none
-              lg:h-screen lg:sticky lg:top-0 lg:translate-x-0
-              ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+              bg-[color:var(--purch-bg)] transition-[transform,width] duration-200 ease-out
+              lg:static lg:inset-auto lg:z-auto lg:h-screen lg:sticky lg:top-0 lg:overflow-y-auto
+              ${
+                sidebarOpen
+                  ? "translate-x-0 lg:w-[300px] lg:shrink-0"
+                  : "-translate-x-full lg:translate-x-0 lg:w-0 lg:shrink-0 lg:overflow-hidden"
+              }`}
           >
             {sidebar}
           </div>
