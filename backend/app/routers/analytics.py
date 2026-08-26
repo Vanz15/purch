@@ -7,6 +7,7 @@ unavailable=True and skip the queries (SQLite date_trunc/INTERVAL aren't portabl
 """
 import logging
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -17,6 +18,27 @@ from app.services import bootstrap as backend
 from app.services.time_utils import today_in_timezone
 
 logger = logging.getLogger("purch.analytics")
+
+# --- Simple in-memory TTL cache for the heavy analytics query ---
+# Repeated loads (sidebar refresh, page mount, toggles) hit the cache
+# instead of re-running 5 sequential Postgres round-trips.
+_ANALYTICS_TTL = 5.0  # seconds
+_cache: dict = {}
+_cache_times: dict = {}
+
+
+def _cached_analytics(user_id: str, year: int, month: int, builder):
+    key = (user_id, year, month)
+    now = datetime.now()
+    if key in _cache and (now - _cache_times[key]).total_seconds() < _ANALYTICS_TTL:
+        logger.info("analytics cache HIT for %s", key)
+        return _cache[key]
+    logger.info("analytics cache MISS for %s", key)
+    result = builder()
+    _cache[key] = result
+    _cache_times[key] = now
+    return result
+
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -144,63 +166,69 @@ async def get_analytics(year: int = 0, month: int = 0, user_id: str = Depends(ge
         "month_end": month_end.isoformat(),
     }
 
-    with engine.connect() as conn:
-        kpi_row = conn.execute(
-            text(
-                "SELECT COUNT(*) AS tx_count, COALESCE(SUM(amount), 0) AS total "
-                "FROM transactions "
-                "WHERE user_id = :uid "
-                "AND tx_timestamp >= (:month_start)::timestamp "
-                "AND tx_timestamp < (:month_end)::timestamp"
-            ),
-            window,
-        ).first()
+    def _run_queries():
+        with engine.connect() as conn:
+            kpi_row = conn.execute(
+                text(
+                    "SELECT COUNT(*) AS tx_count, COALESCE(SUM(amount), 0) AS total "
+                    "FROM transactions "
+                    "WHERE user_id = :uid "
+                    "AND tx_timestamp >= (:month_start)::timestamp "
+                    "AND tx_timestamp < (:month_end)::timestamp"
+                ),
+                window,
+            ).first()
 
-        cat_rows = conn.execute(
-            text(
-                "SELECT category, COALESCE(SUM(amount), 0) AS total, COUNT(*) AS cnt "
-                "FROM transactions WHERE user_id = :uid "
-                "AND tx_timestamp >= (:month_start)::timestamp "
-                "AND tx_timestamp < (:month_end)::timestamp "
-                "GROUP BY category ORDER BY total DESC"
-            ),
-            window,
-        ).all()
+            cat_rows = conn.execute(
+                text(
+                    "SELECT category, COALESCE(SUM(amount), 0) AS total, COUNT(*) AS cnt "
+                    "FROM transactions WHERE user_id = :uid "
+                    "AND tx_timestamp >= (:month_start)::timestamp "
+                    "AND tx_timestamp < (:month_end)::timestamp "
+                    "GROUP BY category ORDER BY total DESC"
+                ),
+                window,
+            ).all()
 
-        trend_rows = conn.execute(
-            text(
-                "SELECT CAST(tx_timestamp AS DATE) AS day, COALESCE(SUM(amount), 0) AS total, "
-                "COUNT(*) AS cnt FROM transactions WHERE user_id = :uid "
-                "AND tx_timestamp >= (:month_start)::timestamp "
-                "AND tx_timestamp < (:month_end)::timestamp "
-                "GROUP BY CAST(tx_timestamp AS DATE) ORDER BY day"
-            ),
-            window,
-        ).all()
+            trend_rows = conn.execute(
+                text(
+                    "SELECT CAST(tx_timestamp AS DATE) AS day, COALESCE(SUM(amount), 0) AS total, "
+                    "COUNT(*) AS cnt FROM transactions WHERE user_id = :uid "
+                    "AND tx_timestamp >= (:month_start)::timestamp "
+                    "AND tx_timestamp < (:month_end)::timestamp "
+                    "GROUP BY CAST(tx_timestamp AS DATE) ORDER BY day"
+                ),
+                window,
+            ).all()
 
-        budget_rows = conn.execute(
-            text(
-                "SELECT b.category, b.limit_amount, COALESCE(SUM(t.amount), 0) AS spent "
-                "FROM budgets b LEFT JOIN transactions t "
-                "ON t.user_id = b.user_id AND t.category = b.category "
-                "AND t.tx_timestamp >= (:month_start)::timestamp "
-                "AND t.tx_timestamp < (:month_end)::timestamp "
-                "WHERE b.user_id = :uid AND b.period = 'monthly' "
-                "GROUP BY b.category, b.limit_amount ORDER BY b.category"
-            ),
-            window,
-        ).all()
+            budget_rows = conn.execute(
+                text(
+                    "SELECT b.category, b.limit_amount, COALESCE(SUM(t.amount), 0) AS spent "
+                    "FROM budgets b LEFT JOIN transactions t "
+                    "ON t.user_id = b.user_id AND t.category = b.category "
+                    "AND t.tx_timestamp >= (:month_start)::timestamp "
+                    "AND t.tx_timestamp < (:month_end)::timestamp "
+                    "WHERE b.user_id = :uid AND b.period = 'monthly' "
+                    "GROUP BY b.category, b.limit_amount ORDER BY b.category"
+                ),
+                window,
+            ).all()
 
-        recent_rows = conn.execute(
-            text(
-                "SELECT item, amount, category, tx_timestamp FROM transactions "
-                "WHERE user_id = :uid "
-                "AND tx_timestamp >= (:month_start)::timestamp "
-                "AND tx_timestamp < (:month_end)::timestamp "
-                "ORDER BY tx_timestamp DESC LIMIT :lim"
-            ),
-            {**window, "lim": _RECENT_LIMIT},
-        ).all()
+            recent_rows = conn.execute(
+                text(
+                    "SELECT item, amount, category, tx_timestamp FROM transactions "
+                    "WHERE user_id = :uid "
+                    "AND tx_timestamp >= (:month_start)::timestamp "
+                    "AND tx_timestamp < (:month_end)::timestamp "
+                    "ORDER BY tx_timestamp DESC LIMIT :lim"
+                ),
+                {**window, "lim": _RECENT_LIMIT},
+            ).all()
+        return kpi_row, cat_rows, trend_rows, budget_rows, recent_rows
+
+    kpi_row, cat_rows, trend_rows, budget_rows, recent_rows = _cached_analytics(
+        user_id, year, month, _run_queries
+    )
 
     # ---- KPIs ----
     month_tx_count = _to_int(kpi_row[0]) if kpi_row else 0
