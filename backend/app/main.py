@@ -13,6 +13,12 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# Load .env (local dev). On Render the vars are injected into the process env,
+# so this is a harmless no-op there. Load BEFORE any module reads os.environ.
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Ensure the app package directory is on sys.path so the top-level packages
 # `llm`, `agent`, and `db` (copied verbatim from the old repo, which imported
 # them as bare names like `from llm import ...`) resolve alongside `app`.
