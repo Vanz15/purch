@@ -85,7 +85,11 @@ export function ChatSidebar() {
   const maxWallet = Math.max(1, ...wallets.map((w) => Math.abs(w.balance)));
 
   return (
-    <aside className="w-full lg:w-[280px] lg:shrink-0 flex flex-col gap-3 bg-[color:var(--purch-bg)] overflow-y-auto p-3 pt-5 lg:p-0 lg:pt-6 lg:px-0 lg:bg-transparent lg:h-screen lg:sticky lg:top-0">
+    <aside className="w-full lg:w-[280px] lg:shrink-0 flex flex-col gap-3 bg-[color:var(--purch-bg)] overflow-y-auto p-3 pt-5 lg:p-0 lg:pt-6 lg:px-7 lg:bg-transparent lg:h-screen lg:sticky lg:top-0">
+      {/* Section title, aligned with the navbar's left edge */}
+      <div className="font-['Fraunces'] font-semibold text-[15px] tracking-tight text-[color:var(--purch-ink)] mb-1 lg:mb-2">
+        Insights
+      </div>
       {/* LIVE WALLET — the dark-brown receipt widget, large */}
       <div
         className="rounded-xl overflow-hidden shadow-[0_10px_30px_rgba(28,20,16,0.28)]"

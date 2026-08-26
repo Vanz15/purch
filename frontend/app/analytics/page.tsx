@@ -92,7 +92,16 @@ export default function AnalyticsPage() {
   if (loading && !data) {
     return (
       <PageShell active="/analytics" sidebar={<ChatSidebar />}>
-        <div className="animate-pulse h-40 rounded-2xl" style={{ background: "var(--purch-line)" }} />
+        <div className="flex flex-col items-center justify-center gap-4 py-24">
+          <div
+            className="h-10 w-10 rounded-full border-2 border-[color:var(--purch-line)] border-t-[color:var(--purch-rust)] animate-spin"
+            role="status"
+            aria-label="Loading"
+          />
+          <p className="font-['Fraunces'] text-[15px] text-[color:var(--purch-taupe)] animate-pulse">
+            Crunching your numbers…
+          </p>
+        </div>
       </PageShell>
     );
   }
