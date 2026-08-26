@@ -369,7 +369,7 @@ export default function WalletsPage() {
               <div className="flex items-center gap-4">
                 <span className="font-['JetBrains_Mono'] text-xl">₱{w.balance_display}</span>
                 <div className="flex gap-3 text-xs">
-                  <button onClick={() => { setForm({ name: w.name, wallet_type: w.wallet_type, balance: String(w.balance), note: w.note }); setEditingId(w.id); }} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-pine)] transition-colors">
+                  <button onClick={() => { setForm({ name: w.name, wallet_type: w.wallet_type, balance: String(w.balance), note: w.note ?? "" }); setEditingId(w.id); setFormOpen(true); }} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-pine)] transition-colors">
                     Edit
                   </button>
                   <button onClick={() => archive(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">

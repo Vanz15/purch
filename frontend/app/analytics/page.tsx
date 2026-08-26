@@ -23,12 +23,16 @@ function KpiCard({ label, value, note, color }: { label: string; value: React.Re
 }
 
 export default function AnalyticsPage() {
+  const now = new Date();
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;
+  const curYM = `${curY}-${String(curM).padStart(2, "0")}`;
   const [authed, setAuthed] = useState(false);
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [year, setYear] = useState(0);
-  const [month, setMonth] = useState(0);
+  const [year, setYear] = useState(curY);
+  const [month, setMonth] = useState(curM);
   const [txs, setTxs] = useState<TransactionRow[]>([]);
   const [txCategory, setTxCategory] = useState<string>("");
   const [txQuery, setTxQuery] = useState<string>("");
@@ -60,11 +64,11 @@ export default function AnalyticsPage() {
     supabase.auth.getSession().then(({ data: s }) => {
       if (s.session) {
         setAuthed(true);
-        load(0, 0);
+        load(curY, curM);
         loadTransactions("", "");
       } else if (isGuest()) {
         setAuthed(true);
-        load(0, 0);
+        load(curY, curM);
         loadTransactions("", "");
       } else {
         setAuthed(false);
@@ -126,6 +130,23 @@ export default function AnalyticsPage() {
   const trendBars = d?.trend?.map((p) => p.total) ?? [];
   const peak = d?.trend_peak ?? 0;
 
+  // Distinct categories across analytics + loaded transactions, for the filter.
+  const txCategories = Array.from(
+    new Set([
+      ...(d?.categories?.map((c) => c.category) || []),
+      ...(txs?.map((t) => t.category) || []),
+    ])
+  ).filter(Boolean).sort();
+
+  const filteredTxs = (txs || []).filter((t) => {
+    if (txCategory && t.category !== txCategory) return false;
+    if (txQuery.trim()) {
+      const q = txQuery.toLowerCase();
+      if (!t.item.toLowerCase().includes(q) && !t.category.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
   return (
     <PageShell active="/analytics" sidebar={<ChatSidebar />}>
       {/* Header */}
@@ -141,18 +162,22 @@ export default function AnalyticsPage() {
             value={`${year}-${month}`}
             onChange={(e) => {
               const [ny, nm] = e.target.value.split("-").map(Number);
-              setYear(nm === 0 ? 0 : ny);
+              setYear(ny);
               setMonth(nm);
-              load(nm === 0 ? 0 : ny, nm);
+              load(ny, nm);
             }}
             className="rounded-lg border px-3.5 py-2.5 text-[13px] font-semibold bg-[color:var(--purch-paper)]"
             style={{ borderColor: "var(--purch-line)" }}
           >
-            <option value="0-0">This month{monthLabel && monthLabel !== "This month" ? ` (${monthLabel})` : ""}</option>
-            {(d?.available_months || []).map((m) => {
-              const [my, mm] = m.split("-").map(Number);
-              return <option key={m} value={`${my}-${mm}`}>{MONTHS[mm - 1]} {my}</option>;
-            })}
+            {(() => {
+              const months = Array.from(
+                new Set([curYM, ...(d?.available_months || [])])
+              ).sort().reverse();
+              return months.map((m) => {
+                const [my, mm] = m.split("-").map(Number);
+                return <option key={m} value={m}>{MONTHS[mm - 1]} {my}</option>;
+              });
+            })()}
           </select>
           <button onClick={() => load(year, month)} disabled={loading} className={`${outlineButton} text-[13px] disabled:opacity-60`}>
             <RefreshCw size={14} /> Refresh
@@ -300,6 +325,76 @@ export default function AnalyticsPage() {
               </div>
             </div>
           )}
+
+          {/* All transactions — filter by category + searchable */}
+          <div className="mt-4 rounded-lg border p-5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <h3 className="font-['Fraunces'] font-semibold text-lg m-0">All transactions</h3>
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--purch-taupe)]" />
+                  <input
+                    value={txQuery}
+                    onChange={(e) => setTxQuery(e.target.value)}
+                    placeholder="Search item or category…"
+                    className="rounded-lg pl-8 pr-3 py-2 text-[13px] bg-[color:var(--purch-paper)] w-full sm:w-[200px]"
+                    style={{ border: "1px solid var(--purch-line-soft)" }}
+                  />
+                </div>
+                <select
+                  value={txCategory}
+                  onChange={(e) => setTxCategory(e.target.value)}
+                  className="rounded-lg px-3 py-2 text-[13px] font-semibold bg-[color:var(--purch-paper)]"
+                  style={{ border: "1px solid var(--purch-line-soft)" }}
+                >
+                  <option value="">All categories</option>
+                  {txCategories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {filteredTxs.length === 0 ? (
+              <p className="text-sm text-[color:var(--purch-taupe)] italic py-6 text-center">
+                No transactions match your filters.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-[0.08em] text-[color:var(--purch-taupe)] border-b" style={{ borderColor: "var(--purch-line)" }}>
+                      <th className="py-2 pr-3 font-semibold">Item</th>
+                      <th className="py-2 pr-3 font-semibold">Category</th>
+                      <th className="py-2 pr-3 font-semibold">Date</th>
+                      <th className="py-2 text-right font-semibold">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTxs.map((t, i) => (
+                      <tr key={t.transaction_id ?? i} className="border-b last:border-0" style={{ borderColor: "var(--purch-line-soft)" }}>
+                        <td className="py-2.5 pr-3 font-medium">{t.item || "—"}</td>
+                        <td className="py-2.5 pr-3">
+                          <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: "#DCEDE6", color: "var(--purch-pine)" }}>
+                            {t.category || "Uncategorized"}
+                          </span>
+                        </td>
+                        <td className="py-2.5 pr-3 font-['JetBrains_Mono'] text-[12px] text-[color:var(--purch-taupe)] whitespace-nowrap">
+                          {t.tx_timestamp?.replace("T", " ") || ""}
+                        </td>
+                        <td className="py-2.5 text-right font-['JetBrains_Mono']">
+                          {t.amount_display || `₱${(t.amount ?? 0).toFixed(2)}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="text-[11.5px] text-[color:var(--purch-taupe)] mt-3">
+              Showing {filteredTxs.length} of {txs?.length ?? 0} transaction{txs?.length === 1 ? "" : "s"}
+            </div>
+          </div>
         </>
       )}
     </PageShell>
