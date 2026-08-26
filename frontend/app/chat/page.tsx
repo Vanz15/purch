@@ -109,6 +109,15 @@ export default function ChatPage() {
     [draft, busy, awaitingWallet, pendingWallet, walletChoices]
   );
 
+  function clearChat() {
+    setMessages([]);
+    setDraft("");
+    setPendingWallet(null);
+    setWalletChoices([]);
+    setAwaitingWallet(false);
+    setError("");
+  }
+
   async function chooseWallet(id: number) {
     if (!pendingWallet) return;
     setBusy(true);
@@ -194,6 +203,16 @@ export default function ChatPage() {
           </div>
         )}
 
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={clearChat}
+            disabled={!hasStarted}
+            className={`${outlineButton} text-[12.5px] disabled:opacity-40`}
+          >
+            Clear chat
+          </button>
+        </div>
+
         {/* The whole chat lives inside one receipt: header -> body (greeting OR thread) -> composer -> perforated edge */}
         <div
           className="rounded-md overflow-hidden"
@@ -244,30 +263,50 @@ export default function ChatPage() {
                       <div className="purch-bubble-user max-w-[78%]">{m.text}</div>
                     </div>
                   ) : (
-                    <ReceiptLine key={i}>
-                      {m.alert === "warning" && (
-                        <span className="font-bold uppercase text-[0.65rem] tracking-[0.1em] mr-1" style={{ color: "var(--purch-gold)" }}>
-                          ⚠ Budget warning —{" "}
-                        </span>
-                      )}
-                      {m.alert === "danger" && (
-                        <span className="font-bold uppercase text-[0.65rem] tracking-[0.1em] mr-1" style={{ color: "var(--purch-rust)" }}>
-                          ⚠ Over budget —{" "}
-                        </span>
-                      )}
-                      {m.text}
-                      {m.meta && (
-                        <div className="mt-1 text-[12.5px]" style={{ color: "var(--purch-pine)" }}>
-                          {m.meta}
-                        </div>
-                      )}
-                    </ReceiptLine>
+                    <div key={i} className="flex items-start gap-2.5 py-2.5">
+                      <div
+                        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-['Fraunces'] font-bold text-[13px]"
+                        style={{ background: "var(--purch-ink)", color: "var(--purch-gold)" }}
+                      >
+                        P
+                      </div>
+                      <div className="flex-1">
+                        <ReceiptLine>
+                          {m.alert === "warning" && (
+                            <span className="font-bold uppercase text-[0.65rem] tracking-[0.1em] mr-1" style={{ color: "var(--purch-gold)" }}>
+                              ⚠ Budget warning —{" "}
+                            </span>
+                          )}
+                          {m.alert === "danger" && (
+                            <span className="font-bold uppercase text-[0.65rem] tracking-[0.1em] mr-1" style={{ color: "var(--purch-rust)" }}>
+                              ⚠ Over budget —{" "}
+                            </span>
+                          )}
+                          {m.text}
+                          {m.meta && (
+                            <div className="mt-1 text-[12.5px]" style={{ color: "var(--purch-pine)" }}>
+                              {m.meta}
+                            </div>
+                          )}
+                        </ReceiptLine>
+                      </div>
+                    </div>
                   )
                 )}
                 {busy && (
-                  <ReceiptLine>
-                    <span className="opacity-60">Purch is writing…</span>
-                  </ReceiptLine>
+                  <div className="flex items-start gap-2.5 py-2.5">
+                    <div
+                      className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-['Fraunces'] font-bold text-[13px]"
+                      style={{ background: "var(--purch-ink)", color: "var(--purch-gold)" }}
+                    >
+                      P
+                    </div>
+                    <div className="flex-1">
+                      <ReceiptLine>
+                        <span className="opacity-60">Purch is writing…</span>
+                      </ReceiptLine>
+                    </div>
+                  </div>
                 )}
                 <div ref={endRef} />
               </div>

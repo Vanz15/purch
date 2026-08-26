@@ -122,6 +122,23 @@ export default function WalletsPage() {
     );
   }
 
+  if (loading && !rows.length) {
+    return (
+      <PageShell active="/wallets" sidebar={<ChatSidebar />}>
+        <div className="flex flex-col items-center justify-center gap-4 py-24">
+          <div
+            className="h-10 w-10 rounded-full border-2 border-[color:var(--purch-line)] border-t-[color:var(--purch-pine)] animate-spin"
+            role="status"
+            aria-label="Loading"
+          />
+          <p className="font-['Fraunces'] text-[15px] text-[color:var(--purch-taupe)] animate-pulse">
+            Counting your coins…
+          </p>
+        </div>
+      </PageShell>
+    );
+  }
+
   const active = rows.filter((r) => !r.is_archived);
   const archived = rows.filter((r) => r.is_archived);
 
