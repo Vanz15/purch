@@ -1,38 +1,34 @@
 "use client";
 
 import Link from "next/link";
+import { MessageCircle, Wallet, BarChart3 } from "lucide-react";
 
-// Shared class fragments mirroring purch.theme.CLASSES, so the whole app
-// references palette tokens by name instead of hard-coding hex values.
+// Shared class fragments matching the Purch redesign palette + type scale.
 
 export const pageClass =
-  "min-h-screen w-full bg-[color:var(--purch-parchment)] text-[color:var(--purch-ink)]";
-
-export const cardClass =
-  "bg-[color:var(--purch-paper)] border border-[color:var(--purch-border)] rounded-2xl shadow-sm";
-
-export const displayHeading =
-  "font-['Playfair_Display'] font-bold tracking-tight text-[color:var(--purch-ink)]";
+  "min-h-screen w-full bg-[color:var(--purch-bg)] text-[color:var(--purch-ink)]";
 
 export const eyebrow =
-  "font-['DM_Mono'] text-[0.65rem] uppercase tracking-[0.12em] text-[color:var(--purch-muted)]";
+  "text-[11px] uppercase tracking-[0.1em] text-[color:var(--purch-taupe)]";
+
+export const displayHeading =
+  "font-['Fraunces'] font-semibold tracking-tight text-[color:var(--purch-ink)]";
 
 export const primaryButton =
-  "inline-flex items-center justify-center gap-2 rounded-xl " +
-  "bg-[color:var(--purch-coral)] hover:bg-[color:var(--purch-coral-light)] " +
-  "text-white font-semibold px-4 py-2.5 transition-colors " +
-  "shadow-[0_4px_14px_var(--purch-coral-shadow)]";
+  "inline-flex items-center justify-center gap-2 rounded-lg " +
+  "bg-[color:var(--purch-rust)] hover:opacity-90 " +
+  "text-[color:var(--purch-paper)] font-semibold px-4 py-2.5 transition-opacity";
 
 export const outlineButton =
-  "inline-flex items-center justify-center gap-2 rounded-xl " +
-  "border border-[color:var(--purch-border)] bg-[color:var(--purch-paper)] " +
-  "text-[color:var(--purch-ink)] hover:border-[color:var(--purch-coral)] " +
-  "hover:text-[color:var(--purch-coral)] font-medium px-4 py-2 transition-colors";
+  "inline-flex items-center justify-center gap-2 rounded-lg " +
+  "border border-[color:var(--purch-line-soft)] bg-[color:var(--purch-paper)] " +
+  "text-[color:var(--purch-ink)] hover:border-[color:var(--purch-rust)] " +
+  "transition-colors font-medium px-4 py-2";
 
 export const ghostButton =
-  "inline-flex items-center justify-center gap-2 rounded-xl " +
-  "text-[color:var(--purch-muted)] hover:text-[color:var(--purch-coral)] " +
-  "font-medium px-3 py-2 transition-colors";
+  "inline-flex items-center justify-center gap-2 rounded-lg " +
+  "text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] " +
+  "transition-colors font-medium px-3 py-2";
 
 export const TONES = [
   "Nonchalant",
@@ -43,6 +39,16 @@ export const TONES = [
   "Kapampangan",
 ];
 
+// Redesign palette (kept in sync with globals.css :root).
+export const C = {
+  ink: "#1C1410",
+  paper: "#FAF3E7",
+  rust: "#C24E2B",
+  pine: "#2F6E5C",
+  gold: "#E8B33D",
+  taupe: "#8B7355",
+};
+
 export function Brand({
   size = "md",
   showBeta = true,
@@ -51,69 +57,77 @@ export function Brand({
   showBeta?: boolean;
 }) {
   const sizeCls =
-    size === "lg" ? "text-4xl" : size === "sm" ? "text-xl" : "text-2xl";
+    size === "lg" ? "text-[26px]" : size === "sm" ? "text-[19px]" : "text-[22px]";
   return (
     <div className="flex items-center gap-2">
       <span
-        className={`${sizeCls} font-['Playfair_Display'] font-bold text-[color:var(--purch-gold)]`}
+        className={`${sizeCls} font-['Fraunces'] font-semibold text-[color:var(--purch-ink)]`}
       >
         Purch
       </span>
-      {showBeta && <span className="purch-beta-badge">Beta</span>}
+      {showBeta && (
+        <span className="purch-beta-badge" style={{ background: C.pine }}>
+          BETA
+        </span>
+      )}
     </div>
   );
 }
 
 export function ToneChip({ tone }: { tone: string }) {
-  return <span className="purch-chip">{tone}</span>;
+  return (
+    <span
+      className="inline-flex items-center rounded-[20px] border px-3 py-1.5 text-xs"
+      style={{ borderColor: C.taupe, color: "#D8CFC2" }}
+    >
+      {tone}
+    </span>
+  );
 }
 
 const NAV = [
-  { href: "/chat", label: "Chat", icon: "💬" },
-  { href: "/wallets", label: "Wallets", icon: "👛" },
-  { href: "/analytics", label: "Analytics", icon: "📊" },
+  { href: "/chat", label: "Chat", icon: MessageCircle },
+  { href: "/wallets", label: "Wallets", icon: Wallet },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
 export function Sidebar({ active }: { active?: string }) {
   return (
-    <aside className="hidden sm:flex w-60 shrink-0 flex-col border-r border-[color:var(--purch-border)] bg-[color:var(--purch-dark)] text-[color:var(--purch-parchment)] p-4">
-      <Link href="/" className="mb-8">
-        <Brand showBeta={false} />
+    <aside className="hidden sm:flex w-[220px] shrink-0 flex-col gap-5 border-r border-[color:var(--purch-line)] bg-[color:var(--purch-paper)] p-5">
+      <Link href="/" className="font-['Fraunces'] font-semibold text-xl text-[color:var(--purch-ink)]">
+        Purch
       </Link>
       <nav className="flex flex-col gap-1">
         {NAV.map((item) => {
           const isActive = active === item.href;
+          const Icon = item.icon;
           return (
             <Link
               key={item.href}
               href={item.href}
               className={
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors " +
+                "flex items-center gap-2 rounded-md px-3 py-2 text-[13.5px] transition-colors " +
                 (isActive
-                  ? "bg-[color:var(--purch-dark-mid)] text-[color:var(--purch-coral-light)]"
-                  : "text-[color:var(--purch-parchment)] opacity-80 hover:bg-[color:var(--purch-dark-mid)] hover:opacity-100")
+                  ? "bg-[color:var(--purch-bg)] font-semibold text-[color:var(--purch-ink)]"
+                  : "text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-ink)]")
               }
             >
-              <span aria-hidden>{item.icon}</span>
+              <Icon size={15} />
               {item.label}
             </Link>
           );
         })}
       </nav>
-      <div className="mt-auto pt-4 text-xs text-[color:var(--purch-muted)]">
-        Budget tracking,
-        <br />
-        reimagined.
-      </div>
     </aside>
   );
 }
 
 export function MobileNav({ active }: { active?: string }) {
   return (
-    <nav className="sm:hidden fixed bottom-0 inset-x-0 z-20 flex border-t border-[color:var(--purch-border)] bg-[color:var(--purch-paper)]">
+    <nav className="sm:hidden fixed bottom-0 inset-x-0 z-20 flex border-t border-[color:var(--purch-line)] bg-[color:var(--purch-paper)]">
       {NAV.map((item) => {
         const isActive = active === item.href;
+        const Icon = item.icon;
         return (
           <Link
             key={item.href}
@@ -121,13 +135,11 @@ export function MobileNav({ active }: { active?: string }) {
             className={
               "flex-1 flex flex-col items-center gap-0.5 py-2 text-[0.65rem] font-medium " +
               (isActive
-                ? "text-[color:var(--purch-coral)]"
-                : "text-[color:var(--purch-muted)]")
+                ? "text-[color:var(--purch-rust)]"
+                : "text-[color:var(--purch-taupe)]")
             }
           >
-            <span aria-hidden className="text-lg">
-              {item.icon}
-            </span>
+            <Icon size={18} />
             {item.label}
           </Link>
         );
@@ -144,10 +156,36 @@ export function PageShell({
   active?: string;
 }) {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-[color:var(--purch-bg)]">
       <Sidebar active={active} />
-      <main className="flex-1 min-w-0 pb-16 sm:pb-0">{children}</main>
+      <main className="flex-1 min-w-0 pb-16 sm:pb-0 flex flex-col">
+        <TopBar />
+        <div className="flex-1 px-6 py-8 sm:px-8">{children}</div>
+      </main>
       <MobileNav active={active} />
     </div>
+  );
+}
+
+export function TopBar() {
+  return (
+    <header className="flex items-center justify-between border-b border-[color:var(--purch-line)] bg-[color:var(--purch-paper)] px-7 py-3.5">
+      <Brand size="sm" />
+      <div className="flex items-center gap-2.5">
+        <div
+          className="flex h-7 w-7 items-center justify-center rounded-full font-['Fraunces'] font-bold text-[12px]"
+          style={{ background: C.ink, color: C.gold }}
+        >
+          P
+        </div>
+        <span className="text-[13px] text-[color:var(--purch-ink)]">Guest</span>
+        <span
+          className="text-[10px] rounded"
+          style={{ background: C.ink, color: C.paper, padding: "3px 8px" }}
+        >
+          GUEST
+        </span>
+      </div>
+    </header>
   );
 }
