@@ -85,42 +85,16 @@ export function ToneChip({ tone }: { tone: string }) {
   );
 }
 
+import { useEffect, useState } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { guestName, isGuest } from "@/lib/guest";
+
 const NAV = [
   { href: "/chat", label: "Chat", icon: MessageCircle },
   { href: "/wallets", label: "Wallets", icon: Wallet },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
-
-export function Sidebar({ active }: { active?: string }) {
-  return (
-    <aside className="hidden sm:flex w-[220px] shrink-0 flex-col gap-5 border-r border-[color:var(--purch-line)] bg-[color:var(--purch-paper)] p-5">
-      <Link href="/" className="font-['Fraunces'] font-semibold text-xl text-[color:var(--purch-ink)]">
-        Purch
-      </Link>
-      <nav className="flex flex-col gap-1">
-        {NAV.map((item) => {
-          const isActive = active === item.href;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={
-                "flex items-center gap-2 rounded-md px-3 py-2 text-[13.5px] transition-colors " +
-                (isActive
-                  ? "bg-[color:var(--purch-bg)] font-semibold text-[color:var(--purch-ink)]"
-                  : "text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-ink)]")
-              }
-            >
-              <Icon size={15} />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
-  );
-}
 
 export function MobileNav({ active }: { active?: string }) {
   return (
@@ -148,17 +122,14 @@ export function MobileNav({ active }: { active?: string }) {
   );
 }
 
-import { useEffect, useState } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { guestName, isGuest } from "@/lib/guest";
-
 export function PageShell({
   children,
   active,
+  sidebar,
 }: {
   children: React.ReactNode;
   active?: string;
+  sidebar?: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [identity, setIdentity] = useState<{ label: string; isGuest: boolean }>({
@@ -187,10 +158,12 @@ export function PageShell({
 
   return (
     <div className="flex min-h-screen bg-[color:var(--purch-bg)]">
-      {sidebarOpen && <Sidebar active={active} />}
+      {sidebar && sidebarOpen && <>{sidebar}</>}
       <main className="flex-1 min-w-0 pb-16 sm:pb-0 flex flex-col">
         <TopBar
+          active={active}
           identity={identity}
+          showToggle={!!sidebar}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen((o) => !o)}
         />
@@ -202,25 +175,52 @@ export function PageShell({
 }
 
 function TopBar({
+  active,
   identity,
+  showToggle,
   sidebarOpen,
   onToggleSidebar,
 }: {
+  active?: string;
   identity: { label: string; isGuest: boolean };
+  showToggle: boolean;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
 }) {
   return (
     <header className="flex items-center justify-between border-b border-[color:var(--purch-line)] bg-[color:var(--purch-paper)] px-7 py-3.5">
       <div className="flex items-center gap-3">
-        <button
-          onClick={onToggleSidebar}
-          aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-          className="hidden sm:flex items-center justify-center h-8 w-8 rounded-md text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] hover:bg-[color:var(--purch-bg)] transition-colors"
-        >
-          {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-        </button>
+        {showToggle && (
+          <button
+            onClick={onToggleSidebar}
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            className="hidden sm:flex items-center justify-center h-8 w-8 rounded-md text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] hover:bg-[color:var(--purch-bg)] transition-colors"
+          >
+            {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+          </button>
+        )}
         <Brand size="sm" showBeta={false} />
+        <nav className="hidden md:flex items-center gap-1 ml-3">
+          {NAV.map((n) => {
+            const isActive = active === n.href;
+            const Icon = n.icon;
+            return (
+              <Link
+                key={n.href}
+                href={n.href}
+                className={
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13.5px] transition-colors " +
+                  (isActive
+                    ? "bg-[color:var(--purch-bg)] font-semibold text-[color:var(--purch-ink)]"
+                    : "text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-ink)]")
+                }
+              >
+                <Icon size={15} />
+                {n.label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
       <div className="flex items-center gap-2.5">
         {identity.label && (
@@ -238,4 +238,5 @@ function TopBar({
     </header>
   );
 }
+
 
