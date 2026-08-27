@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 
 type Mode = "signin" | "signup" | "recover";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
@@ -44,6 +46,14 @@ export default function LoginPage() {
     setError("");
     setInfo("");
     const supabase = createClient();
+
+    // LR-1: validate email format before hitting the network.
+    if (!EMAIL_RE.test(email.trim())) {
+      setError("Please enter a valid email address (e.g. you@example.com).");
+      setBusy(false);
+      return;
+    }
+
     try {
       if (mode === "signup") {
         const { data, error } = await supabase.auth.signUp({
@@ -51,9 +61,19 @@ export default function LoginPage() {
           password,
           options: { data: { name: name || undefined } },
         });
-        if (error) throw error;
-        if (!data.session) {
-          setInfo("Check your inbox to confirm your email, then sign in.");
+        if (error) {
+          // LR-2: surface Supabase's "already registered" error clearly.
+          if (/already registered|user already exists|email.*exists/i.test(error.message)) {
+            setError("This email is already registered. Please sign in or reset your password.");
+          } else {
+            throw error;
+          }
+        } else if (!data.session) {
+          // LR-4: be honest — confirmation email may not arrive (Supabase
+          // "Confirm email" is on but no SMTP sender is configured).
+          setInfo(
+            "Account created. If email confirmation is enabled you'll get a verification link — otherwise you can sign in right away."
+          );
           setMode("signin");
         } else {
           router.replace("/chat");
@@ -92,7 +112,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#faf6ef] px-4">
       <div className="w-full max-w-md bg-[#fffdf8] rounded-2xl shadow-sm border border-[#e7ddd0] p-8">
-        <h1 className="text-3xl font-bold text-[#2b2118]">Purch</h1>
+        <h1 className="font-['Fraunces'] font-semibold text-3xl text-[#2b2118]">Purch</h1>
         <p className="text-sm text-[#8a7c6b] mt-1">
           Budget tracking, reimagined.
         </p>
