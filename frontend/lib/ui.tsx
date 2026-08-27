@@ -120,7 +120,7 @@ export function MobileNav({ active }: { active?: string }) {
             className={
               "flex-1 flex flex-col items-center gap-0.5 py-2 text-[0.65rem] font-medium rounded-md mx-1 transition-colors " +
               (isActive
-                ? "bg-[color:var(--purch-rust)] text-[color:var(--purch-paper)]"
+                ? "bg-[#CDBFA6] text-[color:var(--purch-ink)]"
                 : "text-[color:var(--purch-taupe)]")
             }
           >
@@ -257,7 +257,7 @@ function TopBar({
                 className={
                   "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13.5px] transition-colors " +
                   (isActive
-                    ? "bg-[color:var(--purch-rust)] font-semibold text-[color:var(--purch-paper)] shadow-sm"
+                    ? "bg-[#CDBFA6] font-semibold text-[color:var(--purch-ink)]"
                     : "text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-ink)] hover:bg-[color:var(--purch-bg)]")
                 }
               >
