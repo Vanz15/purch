@@ -18,6 +18,6 @@ export async function GET(request: Request) {
     }
   }
 
-  // Exchange failed (or no code) — bounce back to login with an error flag.
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  // Exchange failed (or no code) — bounce back to the landing page with an error flag.
+  return NextResponse.redirect(`${origin}/?error=auth`);
 }

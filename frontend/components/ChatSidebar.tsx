@@ -92,7 +92,7 @@ export function ChatSidebar() {
     const supabase = createClient();
     supabase.auth.signOut().finally(() => {
       clearGuest();
-      router.push("/login");
+      router.push("/");
     });
   }
 

@@ -168,11 +168,11 @@ export default function ChatPage() {
             </h3>
             <p className="text-[color:var(--purch-taupe)] text-[15px] leading-relaxed mb-6 max-w-md mx-auto">
               Purch keeps every purchase, budget, and tone tied to your account.
-              Sign in with Google or email — or continue as a guest to preview
+              Sign in with Google or continue as a guest to preview
               the experience privately on this device.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <a href="/login" className={primaryButton}>
+              <a href="/" className={primaryButton}>
                 Sign in
               </a>
               <button

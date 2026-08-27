@@ -100,7 +100,7 @@ export default function AnalyticsPage() {
           <div className="rounded-lg p-8 text-center" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
             <h1 className="font-['Fraunces'] font-semibold text-3xl m-0 mb-2">Analytics</h1>
             <p className="text-[color:var(--purch-taupe)] text-sm">Sign in to see your spending overview.</p>
-            <a href="/login" className={`${outlineButton} mt-4`}>Sign in</a>
+            <a href="/" className={`${outlineButton} mt-4`}>Sign in</a>
           </div>
         </div>
       </PageShell>
