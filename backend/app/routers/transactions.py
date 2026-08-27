@@ -99,3 +99,49 @@ async def list_transactions(
         "categories": [str(c[0]) for c in cats],
         "total": len(out),
     }
+
+
+class TransactionUpdate(BaseModel):
+    item: str | None = None
+    amount: float | None = None
+    category: str | None = None
+
+
+@router.put("/{transaction_id}")
+async def update_transaction(
+    transaction_id: int,
+    body: TransactionUpdate,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Edit a transaction's item / amount / category. Ownership is enforced
+    by the user_id scoping inside pg_update_transaction."""
+    if not backend.is_postgres():
+        raise HTTPException(status_code=503, detail="Transaction storage is unavailable right now.")
+    try:
+        backend.update_transaction(
+            tx_id=transaction_id,
+            item=body.item,
+            amount=body.amount,
+            category=body.category,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # pragma: no cover - defensive
+        logger.exception(f"transaction update failed: {e}")
+        raise HTTPException(status_code=500, detail="Could not update transaction.")
+    return {"ok": True}
+
+
+@router.delete("/{transaction_id}")
+async def delete_transaction(
+    transaction_id: int,
+    user_id: str = Depends(get_current_user_id),
+):
+    if not backend.is_postgres():
+        raise HTTPException(status_code=503, detail="Transaction storage is unavailable right now.")
+    try:
+        backend.delete_transaction(tx_id=transaction_id)
+    except Exception as e:  # pragma: no cover - defensive
+        logger.exception(f"transaction delete failed: {e}")
+        raise HTTPException(status_code=500, detail="Could not delete transaction.")
+    return {"ok": True}

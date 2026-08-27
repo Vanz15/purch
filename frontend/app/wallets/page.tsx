@@ -192,6 +192,75 @@ export default function WalletsPage() {
         </div>
       )}
 
+      {/* Create / Edit form — shown immediately below the header when
+          "New wallet" or "Edit" is clicked, above the summary cards. */}
+      {formOpen && (
+        <form onSubmit={submit} className="rounded-lg border p-5 mb-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-['Fraunces'] font-semibold text-lg m-0">{editingId != null ? "Edit wallet" : "New wallet"}</h3>
+            {editingId != null && (
+              <button type="button" onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "" }); setFormOpen(false); }} className="text-xs text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)]">
+                Cancel edit
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="flex flex-col gap-1">
+              <span className={eyebrow}>Name</span>
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                maxLength={40}
+                placeholder="e.g. GCash"
+                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
+                style={{ border: "1px solid var(--purch-line-soft)" }}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={eyebrow}>Type</span>
+              <select
+                value={form.wallet_type}
+                onChange={(e) => setForm({ ...form, wallet_type: e.target.value })}
+                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
+                style={{ border: "1px solid var(--purch-line-soft)" }}
+              >
+                {WALLET_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={eyebrow}>Starting balance</span>
+              <input
+                value={form.balance}
+                onChange={(e) => setForm({ ...form, balance: e.target.value })}
+                placeholder="0.00"
+                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
+                style={{ border: "1px solid var(--purch-line-soft)" }}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={eyebrow}>Note</span>
+              <input
+                value={form.note}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
+                placeholder="optional"
+                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
+                style={{ border: "1px solid var(--purch-line-soft)" }}
+              />
+            </label>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button type="submit" disabled={loading} className={`${primaryButton} text-sm disabled:opacity-60`}>
+              {loading ? "Saving…" : editingId != null ? "Save changes" : "Save wallet"}
+            </button>
+            <button type="button" onClick={() => setFormOpen(false)} className={`${outlineButton} text-sm`}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
       {/* Net worth / Assets / Liabilities */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-5">
         <div className="rounded-lg p-5 text-[color:var(--purch-paper)]" style={{ background: "var(--purch-ink)" }}>
@@ -275,74 +344,6 @@ export default function WalletsPage() {
           })}
         </div>
       </div>
-
-      {/* Create form */}
-      {formOpen && (
-        <form onSubmit={submit} className="rounded-lg border p-5 mb-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-['Fraunces'] font-semibold text-lg m-0">{editingId != null ? "Edit wallet" : "New wallet"}</h3>
-            {editingId != null && (
-              <button type="button" onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "" }); setFormOpen(false); }} className="text-xs text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)]">
-                Cancel edit
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="flex flex-col gap-1">
-              <span className={eyebrow}>Name</span>
-              <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                maxLength={40}
-                placeholder="e.g. GCash"
-                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
-                style={{ border: "1px solid var(--purch-line-soft)" }}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className={eyebrow}>Type</span>
-              <select
-                value={form.wallet_type}
-                onChange={(e) => setForm({ ...form, wallet_type: e.target.value })}
-                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
-                style={{ border: "1px solid var(--purch-line-soft)" }}
-              >
-                {WALLET_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className={eyebrow}>Starting balance</span>
-              <input
-                value={form.balance}
-                onChange={(e) => setForm({ ...form, balance: e.target.value })}
-                placeholder="0.00"
-                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
-                style={{ border: "1px solid var(--purch-line-soft)" }}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className={eyebrow}>Note</span>
-              <input
-                value={form.note}
-                onChange={(e) => setForm({ ...form, note: e.target.value })}
-                placeholder="optional"
-                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
-                style={{ border: "1px solid var(--purch-line-soft)" }}
-              />
-            </label>
-          </div>
-          <div className="flex gap-2 mt-4">
-            <button type="submit" disabled={loading} className={`${primaryButton} text-sm disabled:opacity-60`}>
-              {loading ? "Saving…" : editingId != null ? "Save changes" : "Save wallet"}
-            </button>
-            <button type="button" onClick={() => setFormOpen(false)} className={`${outlineButton} text-sm`}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
 
       {/* Wallet rows */}
       {active.length === 0 && !loading ? (

@@ -36,6 +36,44 @@ export default function AnalyticsPage() {
   const [txs, setTxs] = useState<TransactionRow[]>([]);
   const [txCategory, setTxCategory] = useState<string>("");
   const [txQuery, setTxQuery] = useState<string>("");
+  const [editingTxId, setEditingTxId] = useState<number | null>(null);
+  const [editItem, setEditItem] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [txBusy, setTxBusy] = useState(false);
+  const [txError, setTxError] = useState("");
+
+  async function saveTx(id: number) {
+    setTxBusy(true);
+    setTxError("");
+    try {
+      await api.transactions.update(id, {
+        item: editItem.trim() || undefined,
+        amount: editAmount ? Number(editAmount) : undefined,
+        category: editCategory.trim() || undefined,
+      });
+      setEditingTxId(null);
+      await loadTransactions(txCategory, txQuery);
+    } catch (e: any) {
+      setTxError(e.message || "Failed to update transaction.");
+    } finally {
+      setTxBusy(false);
+    }
+  }
+
+  async function deleteTx(id: number) {
+    if (!confirm("Delete this transaction? This cannot be undone.")) return;
+    setTxBusy(true);
+    setTxError("");
+    try {
+      await api.transactions.delete(id);
+      await loadTransactions(txCategory, txQuery);
+    } catch (e: any) {
+      setTxError(e.message || "Failed to delete transaction.");
+    } finally {
+      setTxBusy(false);
+    }
+  }
 
   const loadTransactions = useCallback(async (cat: string, q: string) => {
     try {
@@ -355,44 +393,98 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
+            {txError && (
+              <div className="mb-3 p-2 rounded-lg border text-sm" style={{ borderColor: "var(--purch-rust)", background: "var(--purch-paper)", color: "var(--purch-rust)" }}>
+                {txError}
+              </div>
+            )}
+
             {filteredTxs.length === 0 ? (
               <p className="text-sm text-[color:var(--purch-taupe)] italic py-6 text-center">
                 No transactions match your filters.
               </p>
             ) : (
               <div className="overflow-x-auto">
+                <div className="max-h-[220px] overflow-y-auto">
                 <table className="w-full text-[13px]">
-                  <thead>
+                  <thead className="sticky top-0 bg-[color:var(--purch-paper)]">
                     <tr className="text-left text-[11px] uppercase tracking-[0.08em] text-[color:var(--purch-taupe)] border-b" style={{ borderColor: "var(--purch-line)" }}>
                       <th className="py-2 pr-3 font-semibold">Item</th>
                       <th className="py-2 pr-3 font-semibold">Category</th>
                       <th className="py-2 pr-3 font-semibold">Date</th>
                       <th className="py-2 text-right font-semibold">Amount</th>
+                      <th className="py-2 text-right font-semibold">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTxs.map((t, i) => (
-                      <tr key={t.transaction_id ?? i} className="border-b last:border-0" style={{ borderColor: "var(--purch-line-soft)" }}>
-                        <td className="py-2.5 pr-3 font-medium">{t.item || "—"}</td>
-                        <td className="py-2.5 pr-3">
-                          <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: "#DCEDE6", color: "var(--purch-pine)" }}>
-                            {t.category || "Uncategorized"}
-                          </span>
-                        </td>
-                        <td className="py-2.5 pr-3 font-['JetBrains_Mono'] text-[12px] text-[color:var(--purch-taupe)] whitespace-nowrap">
-                          {t.tx_timestamp?.replace("T", " ") || ""}
-                        </td>
-                        <td className="py-2.5 text-right font-['JetBrains_Mono']">
-                          {t.amount_display || `₱${(t.amount ?? 0).toFixed(2)}`}
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredTxs.map((t, i) => {
+                      const editing = editingTxId === (t.transaction_id ?? -1);
+                      return (
+                        <tr key={t.transaction_id ?? i} className="border-b last:border-0 align-top" style={{ borderColor: "var(--purch-line-soft)" }}>
+                          {editing ? (
+                            <>
+                              <td className="py-2 pr-3">
+                                <input value={editItem} onChange={(e) => setEditItem(e.target.value)} className="w-full rounded-md px-2 py-1 text-[13px]" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                              </td>
+                              <td className="py-2 pr-3">
+                                <input value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="w-full rounded-md px-2 py-1 text-[13px]" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                              </td>
+                              <td className="py-2 pr-3 font-['JetBrains_Mono'] text-[12px] text-[color:var(--purch-taupe)] whitespace-nowrap">
+                                {t.tx_timestamp?.replace("T", " ") || ""}
+                              </td>
+                              <td className="py-2 text-right font-['JetBrains_Mono]">
+                                <input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="w-24 rounded-md px-2 py-1 text-[13px] text-right" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                              </td>
+                              <td className="py-2 text-right whitespace-nowrap">
+                                <button onClick={() => saveTx(t.transaction_id!)} disabled={txBusy} className="text-[12px] font-semibold" style={{ color: "var(--purch-pine)" }}>Save</button>
+                                <button onClick={() => setEditingTxId(null)} className="text-[12px] ml-2 text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-ink)]">Cancel</button>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="py-2.5 pr-3 font-medium">{t.item || "—"}</td>
+                              <td className="py-2.5 pr-3">
+                                <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: "#DCEDE6", color: "var(--purch-pine)" }}>
+                                  {t.category || "Uncategorized"}
+                                </span>
+                              </td>
+                              <td className="py-2.5 pr-3 font-['JetBrains_Mono'] text-[12px] text-[color:var(--purch-taupe)] whitespace-nowrap">
+                                {t.tx_timestamp?.replace("T", " ") || ""}
+                              </td>
+                              <td className="py-2.5 text-right font-['JetBrains_Mono]">
+                                {t.amount_display || `₱${(t.amount ?? 0).toFixed(2)}`}
+                              </td>
+                              <td className="py-2.5 text-right whitespace-nowrap">
+                                <button
+                                  onClick={() => {
+                                    setEditingTxId(t.transaction_id ?? null);
+                                    setEditItem(t.item || "");
+                                    setEditAmount(String(t.amount ?? ""));
+                                    setEditCategory(t.category || "");
+                                  }}
+                                  className="text-[12px] font-semibold" style={{ color: "var(--purch-pine)" }}
+                                >
+                                  Edit
+                                </button>
+                                <button onClick={() => deleteTx(t.transaction_id!)} className="text-[12px] ml-2 text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)]">
+                                  Delete
+                                </button>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
-            <div className="text-[11.5px] text-[color:var(--purch-taupe)] mt-3">
-              Showing {filteredTxs.length} of {txs?.length ?? 0} transaction{txs?.length === 1 ? "" : "s"}
+            <div className="flex items-center justify-between text-[11.5px] text-[color:var(--purch-taupe)] mt-3">
+              <span>Showing {Math.min(filteredTxs.length, 5)} of {filteredTxs.length} match{filteredTxs.length === 1 ? "" : "es"}</span>
+              {filteredTxs.length > 5 && (
+                <span className="italic">Scroll to see all — top 5 shown</span>
+              )}
             </div>
           </div>
         </>

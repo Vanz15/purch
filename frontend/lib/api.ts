@@ -80,6 +80,13 @@ export const api = {
       const qs = params.toString();
       return authedFetch(`/api/transactions${qs ? `?${qs}` : ""}`);
     },
+    update: (id: number, body: { item?: string; amount?: number; category?: string }) =>
+      authedFetch(`/api/transactions/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    delete: (id: number) =>
+      authedFetch(`/api/transactions/${id}`, { method: "DELETE" }),
   },
   tone: {
     get: () => authedFetch("/api/tone"),
