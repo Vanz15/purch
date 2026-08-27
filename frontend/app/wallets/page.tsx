@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { RefreshCw, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { api, WalletRow, WalletCreate } from "@/lib/api";
-import { PageShell, eyebrow, primaryButton, outlineButton } from "@/lib/ui";
+import { PageShell, eyebrow, primaryButton, outlineButton, useToast } from "@/lib/ui";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { isGuest } from "@/lib/guest";
 
@@ -33,6 +33,11 @@ export default function WalletsPage() {
   const [cardForm, setCardForm] = useState<WalletCreate>({ name: "", wallet_type: "Cash", balance: "", note: "" });
   const [cardSaving, setCardSaving] = useState(false);
   const [error, setError] = useState("");
+  const toast = useToast();
+
+  useEffect(() => {
+    if (error) toast.push(error, "danger");
+  }, [error, toast]);
 
   const load = useCallback(async () => {
     setLoading(true);

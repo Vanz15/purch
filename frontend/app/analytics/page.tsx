@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { api, AnalyticsResponse, TransactionRow } from "@/lib/api";
-import { PageShell, eyebrow, outlineButton } from "@/lib/ui";
+import { PageShell, eyebrow, outlineButton, useToast } from "@/lib/ui";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { isGuest } from "@/lib/guest";
 
@@ -31,6 +31,11 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const toast = useToast();
+
+  useEffect(() => {
+    if (error) toast.push(error, "danger");
+  }, [error, toast]);
   const [year, setYear] = useState(curY);
   const [month, setMonth] = useState(curM);
   const [txs, setTxs] = useState<TransactionRow[]>([]);

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { MessageCircle, Wallet, BarChart3 } from "lucide-react";
+import { createContext, useContext, useCallback } from "react";
 
 // Shared class fragments matching the Purch redesign palette + type scale.
 
@@ -117,9 +118,9 @@ export function MobileNav({ active }: { active?: string }) {
             key={item.href}
             href={item.href}
             className={
-              "flex-1 flex flex-col items-center gap-0.5 py-2 text-[0.65rem] font-medium " +
+              "flex-1 flex flex-col items-center gap-0.5 py-2 text-[0.65rem] font-medium rounded-md mx-1 transition-colors " +
               (isActive
-                ? "text-[color:var(--purch-rust)]"
+                ? "bg-[color:var(--purch-rust)] text-[color:var(--purch-paper)]"
                 : "text-[color:var(--purch-taupe)]")
             }
           >
@@ -242,7 +243,9 @@ function TopBar({
             {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
           </button>
         )}
-        <Brand size="sm" mark showBeta={false} />
+        <Link href="/chat" aria-label="Go to Chat" className="flex items-center gap-3">
+          <Brand size="sm" mark showBeta={false} />
+        </Link>
         <nav className="hidden md:flex items-center gap-1 ml-3">
           {NAV.map((n) => {
             const isActive = active === n.href;
@@ -254,8 +257,8 @@ function TopBar({
                 className={
                   "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13.5px] transition-colors " +
                   (isActive
-                    ? "bg-[color:var(--purch-bg)] font-semibold text-[color:var(--purch-ink)]"
-                    : "text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-ink)]")
+                    ? "bg-[color:var(--purch-rust)] font-semibold text-[color:var(--purch-paper)] shadow-sm"
+                    : "text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-ink)] hover:bg-[color:var(--purch-bg)]")
                 }
               >
                 <Icon size={15} />
@@ -279,6 +282,68 @@ function TopBar({
         </div>
       </div>
     </header>
+  );
+}
+
+// --------------------------------------------------------------------------- //
+// Global toast notifications — fixed, top-center, visible at any scroll
+// position; auto-dismiss after 5s. Mount <ToastProvider> once in layout.tsx
+// and call useToast().push(msg) from anywhere.
+// --------------------------------------------------------------------------- //
+type ToastKind = "info" | "success" | "warning" | "danger";
+interface ToastItem {
+  id: number;
+  kind: ToastKind;
+  message: string;
+}
+
+const ToastCtx = createContext<{ push: (message: string, kind?: ToastKind) => void } | null>(null);
+
+export function useToast() {
+  const ctx = useContext(ToastCtx);
+  if (!ctx) {
+    return { push: (_m: string, _k?: ToastKind) => {} };
+  }
+  return ctx;
+}
+
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const push = useCallback((message: string, kind: ToastKind = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t, { id, kind, message }]);
+    setTimeout(() => {
+      setToasts((t) => t.filter((x) => x.id !== id));
+    }, 5000);
+  }, []);
+
+  return (
+    <ToastCtx.Provider value={{ push }}>
+      {children}
+      <div className="fixed top-3 inset-x-0 z-[100] flex flex-col items-center gap-2 px-3 pointer-events-none">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className="purch-toast pointer-events-auto max-w-[92vw] sm:max-w-md w-full rounded-lg px-4 py-3 text-[13.5px] font-medium shadow-lg"
+            style={{
+              background:
+                t.kind === "danger"
+                  ? "var(--purch-rust)"
+                  : t.kind === "warning"
+                  ? "#E8B33D"
+                  : t.kind === "success"
+                  ? "var(--purch-pine)"
+                  : "var(--purch-ink)",
+              color: t.kind === "warning" ? "var(--purch-ink)" : "var(--purch-paper)",
+            }}
+            role="status"
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
+    </ToastCtx.Provider>
   );
 }
 

@@ -9,6 +9,7 @@ import {
   primaryButton,
   outlineButton,
   eyebrow,
+  useToast,
 } from "@/lib/ui";
 import { PerforatedEdge, ReceiptHeader } from "@/lib/receipt";
 import { ChatSidebar } from "@/components/ChatSidebar";
@@ -66,6 +67,7 @@ export default function ChatPage() {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const toast = useToast();
   const [pendingWallet, setPendingWallet] = useState<Record<string, any> | null>(
     () => loadChat()?.pendingWallet ?? null
   );
@@ -123,6 +125,22 @@ export default function ChatPage() {
     if (!ready) return;
     saveChat({ messages, pendingWallet, walletChoices, awaitingWallet });
   }, [messages, pendingWallet, walletChoices, awaitingWallet, ready]);
+
+  // Surfaced notifications: error + assistant budget warnings appear as a
+  // global toast (top-center, visible at any scroll position) so the user
+  // is notified immediately even when scrolled to the bottom on mobile.
+  useEffect(() => {
+    if (error) toast.push(error, "danger");
+  }, [error, toast]);
+
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (last && last.role === "assistant" && last.alert) {
+      toast.push(last.text, last.alert === "danger" ? "danger" : "warning");
+    }
+    // Only react to the newest assistant message's alert.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
 
   function clearChat() {
     setMessages([]);

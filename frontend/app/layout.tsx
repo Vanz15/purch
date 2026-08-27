@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ToastProvider } from "@/lib/ui";
 
 export const metadata: Metadata = {
   title: "Purch — Budget tracking, reimagined",
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-[color:var(--purch-parchment)] text-[color:var(--purch-ink)]">
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
