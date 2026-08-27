@@ -30,6 +30,8 @@ export default function WalletsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<WalletCreate>({ name: "", wallet_type: "Cash", balance: "", note: "" });
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [cardForm, setCardForm] = useState<WalletCreate>({ name: "", wallet_type: "Cash", balance: "", note: "" });
+  const [cardSaving, setCardSaving] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -67,6 +69,11 @@ export default function WalletsPage() {
       setError("Name is required.");
       return;
     }
+    const bal = parseFloat(form.balance);
+    if (form.balance.trim() !== "" && (isNaN(bal) || bal < 0)) {
+      setError("Starting balance can't be negative — enter 0 or more.");
+      return;
+    }
     setLoading(true);
     try {
       if (editingId != null) {
@@ -82,6 +89,28 @@ export default function WalletsPage() {
       setError(e.message || (editingId != null ? "Failed to update wallet." : "Failed to create wallet."));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveCard(id: number) {
+    if (!cardForm.name.trim()) {
+      setError("Name is required.");
+      return;
+    }
+    const bal = parseFloat(cardForm.balance);
+    if (cardForm.balance.trim() !== "" && (isNaN(bal) || bal < 0)) {
+      setError("Starting balance can't be negative — enter 0 or more.");
+      return;
+    }
+    setCardSaving(true);
+    try {
+      await api.wallets.update(id, cardForm);
+      setEditingId(null);
+      await load();
+    } catch (e: any) {
+      setError(e.message || "Failed to update wallet.");
+    } finally {
+      setCardSaving(false);
     }
   }
 
@@ -345,44 +374,78 @@ export default function WalletsPage() {
         </div>
       </div>
 
-      {/* Wallet rows */}
+      {/* Wallet cards — square, rounded */}
       {active.length === 0 && !loading ? (
         <div className="rounded-lg border p-10 text-center text-[color:var(--purch-taupe)] italic" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
           No wallets yet — create one to start tracking where your money lives.
         </div>
       ) : (
-        <div className="flex flex-col gap-2.5">
-          {active.map((w) => (
-            <div
-              key={w.id}
-              className="flex justify-between items-center rounded-lg border px-5 py-4"
-              style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}
-            >
-              <div>
-                <div className="font-semibold text-[15px] mb-0.5">{w.name}</div>
-                <span
-                  className="text-[11px] px-2 py-0.5 rounded"
-                  style={{ background: "#DCEDE6", color: "var(--purch-pine)" }}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3.5">
+          {active.map((w) => {
+            const editing = editingId === w.id;
+            if (editing) {
+              return (
+                <div
+                  key={w.id}
+                  className="rounded-xl border p-4 flex flex-col gap-3"
+                  style={{ background: "var(--purch-paper)", borderColor: "var(--purch-rust)" }}
                 >
-                  {w.wallet_type.toUpperCase()}
-                </span>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="font-['JetBrains_Mono'] text-xl">₱{w.balance_display}</span>
-                <div className="flex gap-3 text-xs">
-                  <button onClick={() => { setForm({ name: w.name, wallet_type: w.wallet_type, balance: String(w.balance), note: w.note ?? "" }); setEditingId(w.id); setFormOpen(true); }} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-pine)] transition-colors">
+                  <div className="flex flex-col gap-2">
+                    <label className="flex flex-col gap-1">
+                      <span className={eyebrow}>Name</span>
+                      <input value={cardForm.name} onChange={(e) => setCardForm({ ...cardForm, name: e.target.value })} className="rounded-md px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className={eyebrow}>Type</span>
+                      <select value={cardForm.wallet_type} onChange={(e) => setCardForm({ ...cardForm, wallet_type: e.target.value })} className="rounded-md px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }}>
+                        {WALLET_TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className={eyebrow}>Balance</span>
+                      <input value={cardForm.balance} onChange={(e) => setCardForm({ ...cardForm, balance: e.target.value })} className="rounded-md px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className={eyebrow}>Note</span>
+                      <input value={cardForm.note} onChange={(e) => setCardForm({ ...cardForm, note: e.target.value })} className="rounded-md px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                    </label>
+                  </div>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => saveCard(w.id)} disabled={cardSaving} className={`${primaryButton} text-[12px] flex-1 disabled:opacity-60`}>
+                      {cardSaving ? "Saving…" : "Save"}
+                    </button>
+                    <button onClick={() => setEditingId(null)} className={`${outlineButton} text-[12px]`}>Cancel</button>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div
+                key={w.id}
+                className="rounded-xl border p-4 flex flex-col"
+                style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)", minHeight: 132 }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-semibold text-[14px] leading-tight mb-2 break-words">{w.name}</div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ background: "#DCEDE6", color: "var(--purch-pine)" }}>
+                    {w.wallet_type.toUpperCase()}
+                  </span>
+                </div>
+                <div className="font-['JetBrains_Mono'] text-[20px] mt-auto">₱{w.balance_display}</div>
+                {w.note ? <div className="text-[11px] text-[color:var(--purch-taupe)] mt-1 truncate" title={w.note}>{w.note}</div> : null}
+                <div className="flex gap-3 text-[11.5px] mt-3 pt-2" style={{ borderTop: "1px solid var(--purch-line-soft)" }}>
+                  <button
+                    onClick={() => { setCardForm({ name: w.name, wallet_type: w.wallet_type, balance: String(w.balance), note: w.note ?? "" }); setEditingId(w.id); }}
+                    className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-pine)] transition-colors"
+                  >
                     Edit
                   </button>
-                  <button onClick={() => archive(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">
-                    Archive
-                  </button>
-                  <button onClick={() => remove(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">
-                    Delete
-                  </button>
+                  <button onClick={() => archive(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">Archive</button>
+                  <button onClick={() => remove(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">Delete</button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -390,24 +453,18 @@ export default function WalletsPage() {
       {archived.length > 0 && (
         <div className="mt-8">
           <div className={eyebrow}>Archived</div>
-          <div className="flex flex-col gap-2.5 mt-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3.5 mt-2">
             {archived.map((w) => (
               <div
                 key={w.id}
-                className="flex justify-between items-center rounded-lg border px-5 py-4 opacity-70"
-                style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}
+                className="rounded-xl border p-4 flex flex-col opacity-70"
+                style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)", minHeight: 132 }}
               >
-                <div className="font-semibold text-[15px]">{w.name}</div>
-                <div className="flex items-center gap-4">
-                  <span className="font-['JetBrains_Mono'] text-xl">₱{w.balance_display}</span>
-                  <div className="flex gap-3 text-xs">
-                    <button onClick={() => restore(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-pine)] transition-colors">
-                      Restore
-                    </button>
-                    <button onClick={() => remove(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">
-                      Delete
-                    </button>
-                  </div>
+                <div className="font-semibold text-[14px] mb-2 break-words">{w.name}</div>
+                <div className="font-['JetBrains_Mono'] text-[20px] mt-auto">₱{w.balance_display}</div>
+                <div className="flex gap-3 text-[11.5px] mt-3 pt-2" style={{ borderTop: "1px solid var(--purch-line-soft)" }}>
+                  <button onClick={() => restore(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-pine)] transition-colors">Restore</button>
+                  <button onClick={() => remove(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">Delete</button>
                 </div>
               </div>
             ))}
