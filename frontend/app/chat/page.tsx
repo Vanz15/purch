@@ -309,7 +309,7 @@ export default function ChatPage() {
           <div className="px-5 py-4">
             {!hasStarted ? (
               /* Empty state: greeting + description + example chips, all inside the receipt */
-              <div className="text-center py-6">
+              <div className="flex flex-col items-center justify-center text-center h-full py-6">
                 <div
                   className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl font-['Fraunces'] font-bold text-lg"
                   style={{ background: "var(--purch-ink)", color: "var(--purch-gold)" }}
@@ -341,8 +341,9 @@ export default function ChatPage() {
                 </div>
               </div>
             ) : (
-              /* Thread */
-              <div className="max-h-[52vh] overflow-y-auto">
+              /* Thread — fixed responsive height that fits the viewport so the
+                 page itself doesn't scroll; only the conversation scrolls. */
+              <div className="h-[calc(100dvh-390px)] md:h-[calc(100dvh-330px)] lg:h-[calc(100dvh-340px)] overflow-y-auto">
                 {messages.map((m, i) =>
                   m.role === "user" ? (
                     <div key={i} className="flex justify-end py-2.5">
