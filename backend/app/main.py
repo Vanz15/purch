@@ -28,7 +28,6 @@ if _ROOT not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Header
 
 from app.routers import analytics, chat, tone, wallets, guest, transactions
 from app.services import bootstrap
@@ -73,43 +72,6 @@ app.include_router(analytics.router)
 app.include_router(tone.router)
 app.include_router(guest.router)
 app.include_router(transactions.router)
-
-
-# TEMPORARY diagnostic — exercises the SAME verification path as
-# get_current_user_id (JWKS for ES256, secret for HS256) and reports the
-# result plus a secret fingerprint (no secret exposed). Remove after fix.
-@app.get("/_debug_token")
-async def debug_token(authorization: str | None = Header(None)):
-    import hashlib
-
-    if not authorization or not authorization.startswith("Bearer "):
-        return {"ok": False, "reason": "no bearer"}
-    token = authorization.removeprefix("Bearer ").strip()
-    secret = (os.environ.get("SUPABASE_JWT_SECRET", "") or "").strip()
-    fp = (
-        secret[:4] + ":" + secret[-4:] + ":" + hashlib.sha256(secret.encode()).hexdigest()[:12]
-        if secret
-        else "EMPTY"
-    )
-    out = {"secret_present": bool(secret), "secret_len": len(secret), "secret_fingerprint": fp}
-    try:
-        import jwt as pyjwt
-
-        hdr = pyjwt.get_unverified_header(token)
-        out["token_alg"] = hdr.get("alg")
-    except Exception as e:
-        out["header_error"] = str(e)
-    # Run the EXACT same verification the real endpoint uses.
-    try:
-        from app.deps import get_current_user_id
-
-        user_id = await get_current_user_id(authorization)
-        out["verified"] = True
-        out["resolved_user_id"] = user_id
-    except Exception as e:
-        out["verified"] = False
-        out["verify_error"] = str(e)
-    return out
 
 
 @app.get("/health")
