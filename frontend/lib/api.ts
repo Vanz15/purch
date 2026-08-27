@@ -115,6 +115,7 @@ export interface ChatRequest {
   pending_wallet?: Record<string, any> | null;
   wallet_choices?: WalletChoice[] | null;
   awaiting_wallet?: boolean;
+  require_wallet?: boolean;
 }
 
 export interface ChatResponse {

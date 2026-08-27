@@ -52,16 +52,26 @@ export const C = {
 export function Brand({
   size = "md",
   showBeta = true,
+  mark = false,
 }: {
   size?: "sm" | "md" | "lg";
   showBeta?: boolean;
+  mark?: boolean;
 }) {
   const sizeCls =
-    size === "lg" ? "text-[26px]" : size === "sm" ? "text-[19px]" : "text-[22px]";
+    size === "lg" ? "text-[26px]" : size === "sm" ? "text-[20px]" : "text-[22px]";
   return (
     <div className="flex items-center gap-2">
+      {mark && (
+        <span
+          className="flex h-7 w-7 items-center justify-center rounded-lg font-['Fraunces'] font-bold text-[15px]"
+          style={{ background: C.ink, color: C.gold }}
+        >
+          P
+        </span>
+      )}
       <span
-        className={`${sizeCls} font-['Fraunces'] font-semibold text-[color:var(--purch-ink)]`}
+        className={`${sizeCls} font-['Fraunces'] font-semibold tracking-tight text-[color:var(--purch-ink)]`}
       >
         Purch
       </span>
@@ -232,7 +242,7 @@ function TopBar({
             {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
           </button>
         )}
-        <Brand size="sm" showBeta={false} />
+        <Brand size="sm" mark showBeta={false} />
         <nav className="hidden md:flex items-center gap-1 ml-3">
           {NAV.map((n) => {
             const isActive = active === n.href;

@@ -49,6 +49,10 @@ class ChatRequest(BaseModel):
     pending_wallet: dict | None = None
     wallet_choices: list[dict] | None = None
     awaiting_wallet: bool = False
+    # When True, force the "pick a wallet" gate when wallets exist.
+    # When False (no Debit wallets / guest without wallets) the backend
+    # defaults the purchase to a Cash wallet instead of blocking on a choice.
+    require_wallet: bool = True
 
 
 class WalletChoice(BaseModel):
@@ -518,6 +522,11 @@ async def send_message(req: ChatRequest, user_id: str = Depends(get_current_user
             wallets = wallet_backend.list_wallets(user_id) if wallet_backend.available() else []
             if not wallets:
                 # No wallets yet → default the purchase to a Cash wallet; no gate.
+                wallet_note = _default_cash_for_last_tx(user_id, last_tx)
+                response_text = f"{response_text}\n\n{wallet_note}"
+            elif not req.require_wallet:
+                # Client signalled no Debit wallets exist (or chose to skip the
+                # gate) → default to Cash rather than forcing a choice.
                 wallet_note = _default_cash_for_last_tx(user_id, last_tx)
                 response_text = f"{response_text}\n\n{wallet_note}"
             else:

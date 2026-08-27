@@ -179,7 +179,7 @@ export default function WalletsPage() {
           <button onClick={load} disabled={loading} className={`${outlineButton} text-[13px] disabled:opacity-60`}>
             <RefreshCw size={14} /> Refresh
           </button>
-          <button onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "" }); setFormOpen((o) => !o); }} className={`${primaryButton} text-[13px]`}>
+          <button onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "" }); setFormOpen(true); }} className={`${primaryButton} text-[13px]`}>
             <Plus size={14} /> New wallet
           </button>
         </div>

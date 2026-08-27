@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { api, ChatMessage, ChatResponse } from "@/lib/api";
+import { api, ChatMessage, ChatResponse, WalletRow } from "@/lib/api";
 import {
   PageShell,
   primaryButton,
@@ -27,17 +27,58 @@ function ReceiptLine({ children }: { children: React.ReactNode }) {
   return <div className="purch-receipt-line">{children}</div>;
 }
 
+// Persist the chat across page navigation (SPA route changes unmount/remount
+// the page, which would otherwise wipe the thread). sessionStorage is per-tab,
+// so a fresh tab starts clean — which is the behaviour we want.
+const CHAT_KEY = "purch:chat:v1";
+type ChatPersist = {
+  messages: ChatMessage[];
+  pendingWallet: Record<string, any> | null;
+  walletChoices: any[];
+  awaitingWallet: boolean;
+};
+function saveChat(s: ChatPersist) {
+  try {
+    sessionStorage.setItem(CHAT_KEY, JSON.stringify(s));
+  } catch {
+    /* ignore quota / serialization errors */
+  }
+}
+function loadChat(): ChatPersist | null {
+  try {
+    const raw = sessionStorage.getItem(CHAT_KEY);
+    return raw ? (JSON.parse(raw) as ChatPersist) : null;
+  } catch {
+    return null;
+  }
+}
+function groupOf(wt: string): "Debit" | "Lent" | "Borrowed" {
+  if (wt === "Lent") return "Lent";
+  if (wt === "Borrowed" || wt === "Debt") return "Borrowed";
+  return "Debit";
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadChat()?.messages ?? []);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [pendingWallet, setPendingWallet] = useState<Record<string, any> | null>(null);
-  const [walletChoices, setWalletChoices] = useState<any[]>([]);
-  const [awaitingWallet, setAwaitingWallet] = useState(false);
+  const [pendingWallet, setPendingWallet] = useState<Record<string, any> | null>(
+    () => loadChat()?.pendingWallet ?? null
+  );
+  const [walletChoices, setWalletChoices] = useState<any[]>(
+    () => loadChat()?.walletChoices ?? []
+  );
+  const [awaitingWallet, setAwaitingWallet] = useState<boolean>(
+    () => loadChat()?.awaitingWallet ?? false
+  );
+  // Debit wallets available — fetched so we only force "pick a wallet" when at
+  // least one Debit wallet exists. With none, the chat defaults to cash.
+  const [hasDebitWallets, setHasDebitWallets] = useState(false);
+  const [walletCheckLoading, setWalletCheckLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -55,6 +96,47 @@ export default function ChatPage() {
       setReady(true);
     });
   }, []);
+
+  // Check whether any Debit wallets exist (drives the "pick a wallet" gate).
+  useEffect(() => {
+    if (!authed) return;
+    let cancelled = false;
+    setWalletCheckLoading(true);
+    api.wallets
+      .list(true)
+      .then((w) => {
+        if (cancelled) return;
+        const has = (w.wallets || []).some(
+          (x: WalletRow) => !x.is_archived && groupOf(x.wallet_type) === "Debit"
+        );
+        setHasDebitWallets(has);
+      })
+      .catch(() => {})
+      .finally(() => !cancelled && setWalletCheckLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [authed]);
+
+  // Persist the thread on every change so navigating away and back keeps it.
+  useEffect(() => {
+    if (!ready) return;
+    saveChat({ messages, pendingWallet, walletChoices, awaitingWallet });
+  }, [messages, pendingWallet, walletChoices, awaitingWallet, ready]);
+
+  function clearChat() {
+    setMessages([]);
+    setDraft("");
+    setPendingWallet(null);
+    setWalletChoices([]);
+    setAwaitingWallet(false);
+    setError("");
+    try {
+      sessionStorage.removeItem(CHAT_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -81,6 +163,7 @@ export default function ChatPage() {
           pending_wallet: pendingWallet,
           wallet_choices: walletChoices,
           awaiting_wallet: awaitingWallet,
+          require_wallet: hasDebitWallets,
         });
         setMessages((m) => [
           ...m,
@@ -108,15 +191,6 @@ export default function ChatPage() {
     },
     [draft, busy, awaitingWallet, pendingWallet, walletChoices]
   );
-
-  function clearChat() {
-    setMessages([]);
-    setDraft("");
-    setPendingWallet(null);
-    setWalletChoices([]);
-    setAwaitingWallet(false);
-    setError("");
-  }
 
   async function chooseWallet(id: number) {
     if (!pendingWallet) return;
