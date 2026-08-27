@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { MessageCircle, Wallet, BarChart3 } from "lucide-react";
-import { createContext, useContext, useCallback } from "react";
+import { createContext, useContext, useCallback, useRef, useEffect, useState, useMemo } from "react";
 
 // Shared class fragments matching the Purch redesign palette + type scale.
 
@@ -96,7 +96,6 @@ export function ToneChip({ tone }: { tone: string }) {
   );
 }
 
-import { useEffect, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { guestName, isGuest } from "@/lib/guest";
@@ -118,7 +117,7 @@ export function MobileNav({ active }: { active?: string }) {
             key={item.href}
             href={item.href}
             className={
-              "flex-1 flex flex-col items-center gap-0.5 py-2 text-[0.65rem] font-medium rounded-md mx-1 transition-colors " +
+              "flex-1 flex flex-col items-center gap-0.5 py-2 text-[0.65rem] font-medium rounded-md mx-1 my-1 transition-colors " +
               (isActive
                 ? "bg-[#CDBFA6] text-[color:var(--purch-ink)]"
                 : "text-[color:var(--purch-taupe)]")
@@ -203,7 +202,7 @@ export function PageShell({
           </div>
         </>
       )}
-      <main className="flex-1 min-w-0 pb-16 sm:pb-0 flex flex-col">
+      <main className="flex-1 min-w-0 pb-20 sm:pb-0 flex flex-col">
         <TopBar
           active={active}
           identity={identity}
@@ -286,9 +285,10 @@ function TopBar({
 }
 
 // --------------------------------------------------------------------------- //
-// Global toast notifications — fixed, top-center, visible at any scroll
-// position; auto-dismiss after 5s. Mount <ToastProvider> once in layout.tsx
-// and call useToast().push(msg) from anywhere.
+// Global toast notification — a SINGLE live alert that slides in from the
+// right (like a phone notification), sits at top-right, and auto-dismisses
+// after 5s. Only one is shown at a time so it never stacks or fills the page.
+// Mount <ToastProvider> once in layout.tsx; call useToast().push(msg).
 // --------------------------------------------------------------------------- //
 type ToastKind = "info" | "success" | "warning" | "danger";
 interface ToastItem {
@@ -308,40 +308,46 @@ export function useToast() {
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [toast, setToast] = useState<ToastItem | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const push = useCallback((message: string, kind: ToastKind = "info") => {
-    const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, kind, message }]);
-    setTimeout(() => {
-      setToasts((t) => t.filter((x) => x.id !== id));
-    }, 5000);
+    if (timer.current) clearTimeout(timer.current);
+    setToast({ id: Date.now() + Math.random(), kind, message });
+    timer.current = setTimeout(() => setToast(null), 5000);
   }, []);
 
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  // Memoize the context value so consumers' effects don't re-run every render
+  // (an unstable object here caused an infinite setState loop → "Maximum
+  // update depth exceeded" and broke the 5s auto-dismiss).
+  const value = useMemo(() => ({ push }), [push]);
+
   return (
-    <ToastCtx.Provider value={{ push }}>
+    <ToastCtx.Provider value={value}>
       {children}
-      <div className="fixed top-3 inset-x-0 z-[100] flex flex-col items-center gap-2 px-3 pointer-events-none">
-        {toasts.map((t) => (
+      <div className="fixed top-3 right-3 z-[100] pointer-events-none">
+        {toast && (
           <div
-            key={t.id}
-            className="purch-toast pointer-events-auto max-w-[92vw] sm:max-w-md w-full rounded-lg px-4 py-3 text-[13.5px] font-medium shadow-lg"
+            key={toast.id}
+            className="purch-toast pointer-events-auto max-w-[88vw] sm:max-w-[360px] w-full rounded-lg px-4 py-3 text-[13.5px] font-medium shadow-lg"
             style={{
               background:
-                t.kind === "danger"
+                toast.kind === "danger"
                   ? "var(--purch-rust)"
-                  : t.kind === "warning"
+                  : toast.kind === "warning"
                   ? "#E8B33D"
-                  : t.kind === "success"
+                  : toast.kind === "success"
                   ? "var(--purch-pine)"
                   : "var(--purch-ink)",
-              color: t.kind === "warning" ? "var(--purch-ink)" : "var(--purch-paper)",
+              color: toast.kind === "warning" ? "var(--purch-ink)" : "var(--purch-paper)",
             }}
             role="status"
           >
-            {t.message}
+            {toast.message}
           </div>
-        ))}
+        )}
       </div>
     </ToastCtx.Provider>
   );

@@ -31,11 +31,11 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const toast = useToast();
+  const { push: toastPush } = useToast();
 
   useEffect(() => {
-    if (error) toast.push(error, "danger");
-  }, [error, toast]);
+    if (error) toastPush(error, "danger");
+  }, [error, toastPush]);
   const [year, setYear] = useState(curY);
   const [month, setMonth] = useState(curM);
   const [txs, setTxs] = useState<TransactionRow[]>([]);
@@ -46,11 +46,10 @@ export default function AnalyticsPage() {
   const [editAmount, setEditAmount] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [txBusy, setTxBusy] = useState(false);
-  const [txError, setTxError] = useState("");
 
   async function saveTx(id: number) {
     setTxBusy(true);
-    setTxError("");
+    setError("");
     try {
       await api.transactions.update(id, {
         item: editItem.trim() || undefined,
@@ -60,7 +59,7 @@ export default function AnalyticsPage() {
       setEditingTxId(null);
       await loadTransactions(txCategory, txQuery);
     } catch (e: any) {
-      setTxError(e.message || "Failed to update transaction.");
+      setError(e.message || "Failed to update transaction.");
     } finally {
       setTxBusy(false);
     }
@@ -69,12 +68,12 @@ export default function AnalyticsPage() {
   async function deleteTx(id: number) {
     if (!confirm("Delete this transaction? This cannot be undone.")) return;
     setTxBusy(true);
-    setTxError("");
+    setError("");
     try {
       await api.transactions.delete(id);
       await loadTransactions(txCategory, txQuery);
     } catch (e: any) {
-      setTxError(e.message || "Failed to delete transaction.");
+      setError(e.message || "Failed to delete transaction.");
     } finally {
       setTxBusy(false);
     }
@@ -397,12 +396,6 @@ export default function AnalyticsPage() {
                 </select>
               </div>
             </div>
-
-            {txError && (
-              <div className="mb-3 p-2 rounded-lg border text-sm" style={{ borderColor: "var(--purch-rust)", background: "var(--purch-paper)", color: "var(--purch-rust)" }}>
-                {txError}
-              </div>
-            )}
 
             {filteredTxs.length === 0 ? (
               <p className="text-sm text-[color:var(--purch-taupe)] italic py-6 text-center">

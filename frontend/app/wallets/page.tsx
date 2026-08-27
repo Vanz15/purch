@@ -33,11 +33,11 @@ export default function WalletsPage() {
   const [cardForm, setCardForm] = useState<WalletCreate>({ name: "", wallet_type: "Cash", balance: "", note: "" });
   const [cardSaving, setCardSaving] = useState(false);
   const [error, setError] = useState("");
-  const toast = useToast();
+  const { push: toastPush } = useToast();
 
   useEffect(() => {
-    if (error) toast.push(error, "danger");
-  }, [error, toast]);
+    if (error) toastPush(error, "danger");
+  }, [error, toastPush]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -219,13 +219,6 @@ export default function WalletsPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="flex items-center gap-3 mb-4 p-3 rounded-lg border" style={{ borderColor: "var(--purch-rust)", background: "var(--purch-paper)" }}>
-          <span className="font-bold" style={{ color: "var(--purch-rust)" }}>⚠</span>
-          <p className="text-sm flex-1 m-0">{error}</p>
-        </div>
-      )}
-
       {/* Create / Edit form — shown immediately below the header when
           "New wallet" or "Edit" is clicked, above the summary cards. */}
       {formOpen && (
@@ -288,7 +281,7 @@ export default function WalletsPage() {
             <button type="submit" disabled={loading} className={`${primaryButton} text-sm disabled:opacity-60`}>
               {loading ? "Saving…" : editingId != null ? "Save changes" : "Save wallet"}
             </button>
-            <button type="button" onClick={() => setFormOpen(false)} className={`${outlineButton} text-sm`}>
+            <button type="button" onClick={() => { setFormOpen(false); setError(""); }} className={`${outlineButton} text-sm`}>
               Cancel
             </button>
           </div>
@@ -419,7 +412,7 @@ export default function WalletsPage() {
                     <button onClick={() => saveCard(w.id)} disabled={cardSaving} className={`${primaryButton} text-[12px] flex-1 disabled:opacity-60`}>
                       {cardSaving ? "Saving…" : "Save"}
                     </button>
-                    <button onClick={() => setEditingId(null)} className={`${outlineButton} text-[12px]`}>Cancel</button>
+                    <button onClick={() => { setEditingId(null); setError(""); }} className={`${outlineButton} text-[12px]`}>Cancel</button>
                   </div>
                 </div>
               );
