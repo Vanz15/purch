@@ -44,10 +44,15 @@ export function ensureGuest(): string {
 export async function getGuestToken(): Promise<string | null> {
   if (cachedToken) return cachedToken;
   const id = guestId();
-  // Dynamic API URL — always derive from browser origin in dev to avoid stale IPs
+  // Dynamic API URL
   let API_URL = "";
   if (typeof window !== "undefined") {
-    API_URL = window.location.origin.replace(":3000", ":8000");
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (envUrl && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      API_URL = envUrl;
+    } else {
+      API_URL = window.location.origin.replace(":3000", ":8000");
+    }
   }
   try {
     const res = await fetch(`${API_URL}/api/guest-token`, {

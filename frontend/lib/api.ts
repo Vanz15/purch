@@ -1,12 +1,16 @@
 import { createClient } from "@/lib/supabase/client";
 import { getGuestToken, isGuest } from "@/lib/guest";
 
-// Dynamic API URL — always localhost in dev to prevent "failed to fetch".
-// NEXT_PUBLIC_API_URL is only used in production.
+// Dynamic API URL — use NEXT_PUBLIC_API_URL in production, derive from origin in dev.
 function resolveApiUrl(): string {
   // SSR / fallback
-  if (typeof window === "undefined") return "http://127.0.0.1:8000";
-  // Client-side: always derive from the browser origin to avoid stale/dead IPs
+  if (typeof window === "undefined") return process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  // If env var is set and we're NOT on localhost, use it (production)
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    return envUrl;
+  }
+  // Dev: derive from the browser origin
   const origin = window.location.origin.replace(":3000", ":8000");
   return origin;
 }
