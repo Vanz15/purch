@@ -295,7 +295,7 @@ export function PageShell({
         </nav>
       </header>
 
-      <main className="pt-24 px-4 pb-6 sm:px-8 sm:py-8">{children}</main>
+      <main className="pt-16 px-4 pb-6 sm:px-8 sm:pt-16 sm:py-8">{children}</main>
       {/* MobileNav removed — using floating pill navbar instead */}
     </div>
   );

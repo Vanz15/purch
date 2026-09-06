@@ -9,6 +9,24 @@ import { isGuest } from "@/lib/guest";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
+// Category → color mapping (matches landing page dashboard mockup)
+const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+  "Food & Dining": { bg: "#EDE9FE", text: "#7c6edc" },
+  "Transport": { bg: "#DBEAFE", text: "#2563EB" },
+  "Shopping": { bg: "#FCE7F3", text: "#DB2777" },
+  "Entertainment": { bg: "#FEF3C7", text: "#D97706" },
+  "Bills & Utilities": { bg: "#D1FAE5", text: "#059669" },
+  "Health": { bg: "#FEE2E2", text: "#DC2626" },
+  "Education": { bg: "#E0E7FF", text: "#4F46E5" },
+  "Groceries": { bg: "#ECFCCB", text: "#65A30D" },
+  "Savings": { bg: "#CCFBF1", text: "#0D9488" },
+  "Other": { bg: "#F3F4F6", text: "#6B7280" },
+};
+
+function getCategoryColors(category: string) {
+  return CATEGORY_COLORS[category] || CATEGORY_COLORS["Other"];
+}
+
 // Counting animation hook
 function useCountUp(target: number, duration: number = 800) {
   const [count, setCount] = useState(0);
@@ -138,9 +156,9 @@ function SpendingLineChart({ trend, peak, monthLabel }: { trend: { day: string; 
   useEffect(() => {
     if (!trend.length) return;
 
-    const padding = { top: 8, right: 40, bottom: 20, left: 40 };
+    const padding = { top: 24, right: 40, bottom: 20, left: 40 };
     const width = 300;
-    const height = 80;
+    const height = 60;
 
     const newPoints = trend.map((point, i) => {
     const x = (i / (trend.length - 1)) * (width - padding.left - padding.right) + padding.left;
@@ -159,7 +177,7 @@ function SpendingLineChart({ trend, peak, monthLabel }: { trend: { day: string; 
     );
   }
 
-  const svgHeight = 80;
+  const svgHeight = 60;
   const svgWidth = 300;
 
   // Create smooth path
@@ -169,7 +187,7 @@ function SpendingLineChart({ trend, peak, monthLabel }: { trend: { day: string; 
 
   // Area fill path (line + bottom)
   const areaPath = pathData
-    ? `${pathData} L ${points[points.length - 1].x},${svgHeight - 20} L ${points[0].x},${svgHeight - 20} Z`
+    ? `${pathData} L ${points[points.length - 1].x},${svgHeight - 16} L ${points[0].x},${svgHeight - 16} Z`
     : "";
 
   return (
@@ -219,7 +237,7 @@ function SpendingLineChart({ trend, peak, monthLabel }: { trend: { day: string; 
               x1={point.x}
               y1={point.y + 6}
               x2={point.x}
-              y2={svgHeight - 20}
+              y2={svgHeight - 16}
               stroke="var(--purch-line)"
               strokeWidth="1"
             />
@@ -682,9 +700,14 @@ export default function AnalyticsPage() {
                             <>
                               <td className="py-2.5 pr-3 font-medium">{t.item || "—"}</td>
                               <td className="py-2.5 pr-3">
-                                <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: "#E0F5EF", color: "var(--purch-pine)" }}>
-                                  {t.category || "Uncategorized"}
-                                </span>
+                                {(() => {
+                                  const colors = getCategoryColors(t.category || "");
+                                  return (
+                                    <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: colors.bg, color: colors.text }}>
+                                      {t.category || "Uncategorized"}
+                                    </span>
+                                  );
+                                })()}
                               </td>
                               <td className="py-2.5 pr-3 font-['JetBrains_Mono'] text-[12px] text-[color:var(--purch-taupe)] whitespace-nowrap">
                                 {t.tx_timestamp?.replace("T", " ") || ""}

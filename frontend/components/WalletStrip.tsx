@@ -1,8 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { api, WalletRow } from "@/lib/api";
 import { Landmark, PiggyBank, Wallet, Banknote } from "lucide-react";
+
+// CountUp component with ease-out and slow last count
+function CountUp({ value, prefix = "₱" }: { value: number; prefix?: string }) {
+  const [display, setDisplay] = useState(0);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (value === 0) { setDisplay(0); return; }
+    const duration = 900;
+    const start = performance.now();
+    function animate(now: number) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease-out cubic that slows near the end
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(eased * value);
+      if (progress < 1) rafRef.current = requestAnimationFrame(animate);
+    }
+    rafRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [value]);
+
+  return <>{prefix}{display.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>;
+}
 
 const WALLET_PALETTE = [
   { bg: "#B8860B", text: "#FFFFFF" },  // Dark Gold
@@ -63,6 +87,7 @@ export function toggleFavorite(id: number) {
 
 export function WalletStack() {
   const [wallets, setWallets] = useState<WalletRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const favorites = loadFavorites();
 
   async function load() {
@@ -71,6 +96,8 @@ export function WalletStack() {
       setWallets((w.wallets || []).filter((x: WalletRow) => !x.is_archived));
     } catch {
       /* keep previous state on failure */
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -119,6 +146,56 @@ export function WalletStack() {
     `100% 0%, ` +
     `100% 100%, ` +
     `0% 100%)`;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3">
+        {/* Loading skeleton */}
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl px-4 py-3 flex items-center justify-between"
+            style={{
+              height: 56,
+              background: "#f0f0f0",
+              marginTop: i > 0 ? -14 : 0,
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-4 h-4 rounded bg-[#ddd]" />
+              <div className="w-16 h-3 rounded bg-[#ddd]" />
+            </div>
+            <div className="w-20 h-3 rounded bg-[#ddd]" />
+            {/* Shimmer */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%)",
+                animation: "shimmer 1.5s infinite",
+              }}
+            />
+          </div>
+        ))}
+        {/* Summary skeleton */}
+        <div
+          className="rounded-2xl px-5 py-6 flex items-end justify-between"
+          style={{ background: "#fff", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.06))", marginTop: -10 }}
+        >
+          <div>
+            <div className="w-14 h-2.5 rounded bg-[#eee] mb-2" />
+            <div className="w-20 h-2 rounded bg-[#eee]" />
+          </div>
+          <div className="w-24 h-5 rounded bg-[#eee]" />
+        </div>
+        <style>{`@keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }`}</style>
+        <p className="text-center text-[11px] text-[color:var(--purch-taupe)] italic -mt-1">
+          Making sure everything is updated…
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col">
@@ -199,7 +276,7 @@ export function WalletStack() {
           </div>
         </div>
         <span className="text-[26px] font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--purch-ink)" }}>
-          <span style={{ fontFamily: "inherit" }}>₱</span>{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <CountUp value={total} />
         </span>
       </div>
     </div>

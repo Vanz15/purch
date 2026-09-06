@@ -458,7 +458,7 @@ export default function ChatPage() {
             ) : (
               /* Thread — fixed responsive height that fits the viewport so the
                  page itself doesn't scroll; only the conversation scrolls. */
-              <div className="h-[calc(100dvh-520px)] md:h-[calc(100dvh-460px)] lg:h-[calc(100dvh-470px)] overflow-y-auto">
+              <div className="h-[calc(100dvh-420px)] md:h-[calc(100dvh-460px)] lg:h-[calc(100dvh-470px)] overflow-y-auto">
                 {messages.map((m, i) =>
                   m.role === "user" ? (
                     <div key={i} className="flex justify-end py-2.5">
