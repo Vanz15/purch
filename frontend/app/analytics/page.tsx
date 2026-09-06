@@ -1,23 +1,284 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { ChevronLeft, ChevronRight, RefreshCw, Search, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { api, AnalyticsResponse, TransactionRow } from "@/lib/api";
+import { api, AnalyticsResponse } from "@/lib/api";
 import { PageShell, eyebrow, outlineButton, useToast } from "@/lib/ui";
-import { ChatSidebar } from "@/components/ChatSidebar";
 import { isGuest } from "@/lib/guest";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-function KpiCard({ label, value, note, color }: { label: string; value: React.ReactNode; note: string; color?: string }) {
+// Counting animation hook
+function useCountUp(target: number, duration: number = 800) {
+  const [count, setCount] = useState(0);
+  const frameRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    startTimeRef.current = null;
+    const animate = (timestamp: number) => {
+      if (!startTimeRef.current) startTimeRef.current = timestamp;
+      const elapsed = timestamp - startTimeRef.current;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease-out cubic for smooth deceleration
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.floor(target * eased));
+      if (progress < 1) {
+        frameRef.current = requestAnimationFrame(animate);
+      } else {
+        setCount(target);
+      }
+    };
+    frameRef.current = requestAnimationFrame(animate);
+    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
+  }, [target, duration]);
+
+  return count;
+}
+
+// Typewriter animation hook
+function useTypewriter(text: string, speed: number = 40) {
+  const [displayed, setDisplayed] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    setDisplayed("");
+    setDone(false);
+    if (!text) return;
+    let idx = 0;
+    const interval = setInterval(() => {
+      idx++;
+      setDisplayed(text.slice(0, idx));
+      if (idx >= text.length) {
+        clearInterval(interval);
+        setDone(true);
+      }
+    }, speed);
+    return () => clearInterval(interval);
+  }, [text, speed]);
+
+  return { displayed, done };
+}
+
+// Scroll-triggered fade-in wrapper — triggers on mobile/tablet (sm screens), instant on desktop
+function FadeInSection({ children, className = "", delay = 0, style: extraStyle }: { children: React.ReactNode; className?: string; delay?: number; style?: React.CSSProperties }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const isMobile = window.matchMedia("(max-width: 639px)").matches;
+    if (!isMobile) {
+      setVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="rounded-lg border p-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        ...extraStyle,
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(24px)",
+        transition: `opacity 500ms ease, transform 500ms ease ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Animated KPI component with counting + typewriter effect
+function KpiCard({ label, value, note, color, isNumber = false, prefix = "" }: {
+  label: string;
+  value: React.ReactNode | number;
+  note: string;
+  color?: string;
+  isNumber?: boolean;
+  prefix?: string;
+}) {
+  const numericValue = isNumber ? (typeof value === "number" ? value : 0) : 0;
+  const displayValue = useCountUp(numericValue);
+  const noteTypewriter = useTypewriter(note, 30);
+
+  return (
+    <div className="rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
       <div className={eyebrow} style={{ fontSize: 11 }}>{label}</div>
-      <div className="font-['Fraunces'] font-semibold text-[26px] mt-2 mb-1" style={{ color: color || "var(--purch-ink)" }}>
-        {value}
+      <div className="font-sans font-semibold text-[26px] mt-2 mb-1" style={{ color: color || "var(--purch-ink)" }}>
+        {isNumber ? `${prefix}${displayValue.toLocaleString()}` : value}
       </div>
-      <div className="text-[11.5px] text-[color:var(--purch-taupe)]">{note}</div>
+      <div className="text-[11.5px] text-[color:var(--purch-muted-ink)]" style={{ minHeight: "1.2em" }}>
+        {noteTypewriter.displayed}
+        {!noteTypewriter.done && <span className="inline-block w-[1px] h-[11px] bg-[color:var(--purch-muted-ink)] animate-pulse ml-[1px]" />}
+      </div>
+    </div>
+  );
+}
+
+// Line chart component for spending trend
+function SpendingLineChart({ trend, peak, monthLabel }: { trend: { day: string; total: number }[]; peak: number; monthLabel: string }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [points, setPoints] = useState<{ x: number; y: number; total: number }[]>([]);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!trend.length) return;
+
+    const padding = { top: 8, right: 40, bottom: 20, left: 40 };
+    const width = 300;
+    const height = 80;
+
+    const newPoints = trend.map((point, i) => {
+    const x = (i / (trend.length - 1)) * (width - padding.left - padding.right) + padding.left;
+    const ratio = peak > 0 ? point.total / peak : 0;
+    const y = height - padding.bottom - (ratio * (height - padding.top - padding.bottom));
+    return { x, y, total: point.total };
+    });
+    setPoints(newPoints);
+  }, [trend, peak]);
+
+  if (!trend.length) {
+    return (
+      <p className="text-sm text-[color:var(--purch-muted-ink)] italic py-6 text-center m-0">
+        No activity this month — log a purchase to see the trend.
+      </p>
+    );
+  }
+
+  const svgHeight = 80;
+  const svgWidth = 300;
+
+  // Create smooth path
+  const pathData = points.length > 1
+    ? `M ${points.map(p => `${p.x},${p.y}`).join(" L ")}`
+    : "";
+
+  // Area fill path (line + bottom)
+  const areaPath = pathData
+    ? `${pathData} L ${points[points.length - 1].x},${svgHeight - 20} L ${points[0].x},${svgHeight - 20} Z`
+    : "";
+
+  return (
+    <div className="w-full">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        className="w-full h-auto"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="var(--purch-accent)" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="var(--purch-accent)" stopOpacity="0.05" />
+          </linearGradient>
+          <linearGradient id="strokeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="var(--purch-accent)" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="var(--purch-accent)" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+
+        {/* Area fill */}
+        {areaPath && (
+          <path
+            d={areaPath}
+            fill="url(#lineGradient)"
+          />
+        )}
+
+        {/* Line */}
+        {pathData && (
+          <path
+            d={pathData}
+            fill="none"
+            stroke="url(#strokeGradient)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+
+        {/* Tick marks + data points + hover zones */}
+        {points.map((point, i) => (
+          <g key={i}>
+            {/* Tick mark below node */}
+            <line
+              x1={point.x}
+              y1={point.y + 6}
+              x2={point.x}
+              y2={svgHeight - 20}
+              stroke="var(--purch-line)"
+              strokeWidth="1"
+            />
+            {/* Invisible hover zone */}
+            <rect
+              x={point.x - 15}
+              y={0}
+              width={30}
+              height={svgHeight}
+              fill="transparent"
+              onMouseEnter={() => setHoverIdx(i)}
+              onMouseLeave={() => setHoverIdx(null)}
+              style={{ cursor: "pointer" }}
+            />
+            {/* Data point */}
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={hoverIdx === i ? 5 : 3}
+              fill="var(--purch-bg)"
+              stroke="var(--purch-accent)"
+              strokeWidth="2"
+              style={{ transition: "r 0.15s ease" }}
+            />
+            {/* Tooltip */}
+            {hoverIdx === i && (
+              <g>
+                <rect
+                  x={point.x - 22}
+                  y={point.y - 22}
+                  width={44}
+                  height={16}
+                  rx={4}
+                  fill="white"
+                  stroke="var(--purch-line)"
+                  strokeWidth="1"
+                  filter="drop-shadow(0 1px 3px rgba(0,0,0,0.1))"
+                />
+                <text
+                  x={point.x}
+                  y={point.y - 11}
+                  textAnchor="middle"
+                  fill="var(--purch-ink)"
+                  fontSize="9"
+                  fontFamily="var(--font-fragment-mono)"
+                >
+                  ₱{point.total.toLocaleString()}
+                </text>
+              </g>
+            )}
+          </g>
+        ))}
+      </svg>
+
+      {/* X-axis labels — first and last only */}
+      <div className="flex justify-between text-[11px] text-[color:var(--purch-muted-ink)] mt-2 px-0">
+        <span>{monthLabel} 1</span>
+        <span>{monthLabel} {trend.length}</span>
+      </div>
     </div>
   );
 }
@@ -38,7 +299,7 @@ export default function AnalyticsPage() {
   }, [error, toastPush]);
   const [year, setYear] = useState(curY);
   const [month, setMonth] = useState(curM);
-  const [txs, setTxs] = useState<TransactionRow[]>([]);
+  const [txs, setTxs] = useState<any[]>([]);
   const [txCategory, setTxCategory] = useState<string>("");
   const [txQuery, setTxQuery] = useState<string>("");
   const [editingTxId, setEditingTxId] = useState<number | null>(null);
@@ -137,11 +398,11 @@ export default function AnalyticsPage() {
 
   if (!authed) {
     return (
-      <PageShell active="/analytics" sidebar={<ChatSidebar />}>
+      <PageShell active="/analytics">
         <div className="mx-auto max-w-md">
-          <div className="rounded-lg p-8 text-center" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
-            <h1 className="font-['Fraunces'] font-semibold text-3xl m-0 mb-2">Analytics</h1>
-            <p className="text-[color:var(--purch-taupe)] text-sm">Sign in to see your spending overview.</p>
+          <div className="rounded-2xl p-8 text-center" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
+            <h1 className="font-sans font-semibold text-[30px] m-0 mb-2">Analytics</h1>
+            <p className="text-[14px] text-[color:var(--purch-muted-ink)] m-0">Sign in to see your spending overview.</p>
             <a href="/" className={`${outlineButton} mt-4`}>Sign in</a>
           </div>
         </div>
@@ -151,14 +412,14 @@ export default function AnalyticsPage() {
 
   if (loading && !data) {
     return (
-      <PageShell active="/analytics" sidebar={<ChatSidebar />}>
+      <PageShell active="/analytics">
         <div className="flex flex-col items-center justify-center gap-4 py-24">
           <div
-            className="h-10 w-10 rounded-full border-2 border-[color:var(--purch-line)] border-t-[color:var(--purch-rust)] animate-spin"
+            className="h-10 w-10 rounded-full border-2 border-[color:var(--purch-line)] border-t-[color:var(--purch-accent)] animate-spin"
             role="status"
             aria-label="Loading"
           />
-          <p className="font-['Fraunces'] text-[15px] text-[color:var(--purch-taupe)] animate-pulse">
+          <p className="font-sans text-[14px] text-[color:var(--purch-muted-ink)] animate-pulse">
             Crunching your numbers…
           </p>
         </div>
@@ -190,12 +451,12 @@ export default function AnalyticsPage() {
   });
 
   return (
-    <PageShell active="/analytics" sidebar={<ChatSidebar />}>
+    <PageShell active="/analytics">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
         <div>
           <div className={eyebrow}>Spending overview</div>
-          <h1 className="font-['Fraunces'] font-semibold text-[30px] mt-0 m-0">
+          <h1 className="font-sans font-semibold text-[30px] mt-0 m-0">
             Analytics
           </h1>
         </div>
@@ -208,7 +469,7 @@ export default function AnalyticsPage() {
               setMonth(nm);
               load(ny, nm);
             }}
-            className="rounded-lg border px-3.5 py-2.5 text-[13px] font-semibold bg-[color:var(--purch-paper)]"
+            className="rounded-lg border px-3.5 py-2.5 text-[13px] font-semibold bg-white"
             style={{ borderColor: "var(--purch-line)" }}
           >
             {(() => {
@@ -229,7 +490,7 @@ export default function AnalyticsPage() {
 
       {error && (
         <div className="flex items-center gap-3 mb-4 p-3 rounded-lg border" style={{ borderColor: "var(--purch-rust)", background: "var(--purch-paper)" }}>
-          <span className="font-bold" style={{ color: "var(--purch-rust)" }}>⚠</span>
+          <span style={{ color: "var(--purch-rust)" }}><AlertTriangle size={14} strokeWidth={1.5} /></span>
           <p className="text-sm flex-1 m-0">{error}</p>
         </div>
       )}
@@ -241,152 +502,131 @@ export default function AnalyticsPage() {
       ) : (
         <>
           {/* KPI row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
+          <FadeInSection className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
             <KpiCard
               label="Spent this month"
-              value={<>₱{(d?.kpi.total ?? 0).toLocaleString()}</>}
+              value={d?.kpi.total ?? 0}
               note={(d?.kpi.tx_count ?? 0) > 0 ? `${d?.kpi.tx_count} transaction${(d?.kpi.tx_count ?? 0) === 1 ? "" : "s"}` : "No transactions yet"}
-              color="var(--purch-rust)"
+              color="var(--purch-ink)"
+              isNumber
+              prefix="₱"
             />
-            <KpiCard label="Transactions" value={d?.kpi.tx_count ?? 0} note="Logged this month" />
+            <KpiCard
+              label="Transactions"
+              value={d?.kpi.tx_count ?? 0}
+              note="Logged this month"
+              isNumber
+            />
             <KpiCard
               label="Top category"
               value={d?.top_category || "—"}
               note={(d?.top_category_amount ?? 0) > 0 ? `₱${d?.top_category_amount?.toLocaleString()} in ${mlabel}` : "No spending yet"}
-              color="var(--purch-rust)"
+              color="var(--purch-ink)"
             />
             <KpiCard
               label="Budget used"
               value={`${(d?.budget_used_pct ?? 0).toFixed(0)}%`}
               note={(d?.budget_limit_total ?? 0) > 0 ? `₱${d?.budget_spent_total?.toLocaleString()} of ₱${d?.budget_limit_total?.toLocaleString()}` : "Set one in chat"}
-              color={(d?.budget_used_pct ?? 0) >= 100 ? "var(--purch-rust)" : (d?.budget_used_pct ?? 0) >= 80 ? "var(--purch-gold)" : "var(--purch-ink)"}
+              color={(d?.budget_used_pct ?? 0) >= 100 ? "var(--purch-coral)" : (d?.budget_used_pct ?? 0) >= 80 ? "var(--purch-gold)" : "var(--purch-ink)"}
             />
-          </div>
+          </FadeInSection>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+          <FadeInSection className="grid grid-cols-1 lg:grid-cols-2 gap-3.5" delay={100}>
             {/* Category breakdown */}
-            <div className="rounded-lg border p-5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
-              <h3 className="font-['Fraunces'] font-semibold text-lg m-0 mb-3.5">Category breakdown</h3>
+            <div className="rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
+              <h3 className="font-sans font-semibold text-lg m-0 mb-3.5">Category breakdown</h3>
               {d && d.categories.length > 0 ? (
                 d.categories.map((c) => (
                   <div key={c.category} className="mb-3.5 last:mb-0">
                     <div className="flex justify-between text-[13px] mb-1.5">
-                      <span>{c.category}</span>
-                      <span className="font-['JetBrains_Mono']">₱{c.total.toLocaleString()}</span>
+                      <span style={{ color: "var(--purch-ink)" }}>{c.category}</span>
+                      <span className="font-['JetBrains_Mono']" style={{ color: "var(--purch-ink)" }}>₱{c.total.toLocaleString()}</span>
                     </div>
-                    <div className="h-2 rounded-full" style={{ background: "var(--purch-bg)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${Math.min(c.pct_of_total, 100)}%`, background: "var(--purch-rust)" }} />
+                    <div className="h-2 rounded-full" style={{ background: "var(--purch-line)" }}>
+                      <div className="h-full rounded-full" style={{ width: `${Math.min(c.pct_of_total, 100)}%`, background: "var(--purch-accent)" }} />
                     </div>
-                    <div className="text-[11.5px] text-[color:var(--purch-taupe)] mt-1.5">
+                    <div className="text-[11.5px] text-[color:var(--purch-muted-ink)] mt-1.5">
                       {c.pct_of_total.toFixed(0)}% of monthly spend
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-[color:var(--purch-taupe)] italic py-6 text-center">
+                <p className="text-sm text-[color:var(--purch-muted-ink)] italic py-6 text-center m-0">
                   No spending logged for this month — try &quot;coffee 150&quot; in chat.
                 </p>
               )}
             </div>
 
-            {/* Trend */}
-            <div className="rounded-lg border p-5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
-              <h3 className="font-['Fraunces'] font-semibold text-lg m-0 mb-3.5">Spending trend</h3>
-              {d && d.trend.length > 0 ? (
-                <>
-                  <div className="flex items-end gap-[3px] h-[90px]">
-                    {d.trend.map((p, i) => {
-                      const ratio = peak > 0 ? (p.total / peak) * 100 : 0;
-                      const isLast = i === d.trend.length - 1;
-                      return (
-                        <div
-                          key={i}
-                          className="flex-1 rounded-sm"
-                          style={{
-                            height: p.total > 0 ? `${Math.max(ratio, 4)}%` : "4%",
-                            background: isLast ? "var(--purch-rust)" : "var(--purch-line)",
-                          }}
-                          title={p.day}
-                        />
-                      );
-                    })}
-                  </div>
-                  <div className="flex justify-between text-[11px] text-[color:var(--purch-taupe)] mt-2">
-                    <span>Aug 01</span>
-                    <span>{mlabel} {d.trend[d.trend.length - 1]?.day?.replace(/^\w+,?\s*/, "") || ""}</span>
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-[color:var(--purch-taupe)] italic py-6 text-center">
-                  No activity this month — log a purchase to see the trend.
-                </p>
-              )}
+            {/* Trend — line chart */}
+            <div className="rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
+              <h3 className="font-sans font-semibold text-lg m-0 mb-3.5">Spending trend</h3>
+              <SpendingLineChart trend={d?.trend ?? []} peak={peak} monthLabel={mlabel} />
             </div>
-          </div>
+          </FadeInSection>
 
           {/* Budgets */}
           {d && d.budgets.length > 0 && (
-            <div className="mt-4">
-              <h3 className="font-['Fraunces'] font-semibold text-lg mb-3">Budget status</h3>
+            <FadeInSection className="mt-4" delay={200}>
+              <h3 className="font-sans font-semibold text-lg mb-3">Budget status</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 {d.budgets.map((b, i) => {
                   const fill =
-                    b.status === "over" ? "var(--purch-rust)" : b.status === "near" ? "var(--purch-gold)" : "var(--purch-rust)";
+                    b.status === "over" ? "var(--purch-coral)" : b.status === "near" ? "var(--purch-gold)" : "var(--purch-accent)";
                   return (
-                    <div key={i} className="rounded-lg border p-5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+                    <div key={i} className="rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
                       <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-['Fraunces'] font-semibold text-base m-0">{b.category}</h4>
+                        <h4 className="font-sans font-semibold text-base m-0" style={{ color: "var(--purch-ink)" }}>{b.category}</h4>
                         <span
                           className="text-[0.6rem] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
                           style={{
-                            background: b.status === "over" ? "rgba(194,78,43,0.12)" : b.status === "near" ? "rgba(232,179,61,0.15)" : "rgba(47,110,92,0.15)",
-                            color: b.status === "over" ? "var(--purch-rust)" : b.status === "near" ? "var(--purch-gold)" : "var(--purch-pine)",
+                            background: b.status === "over" ? "rgba(255,69,58,0.12)" : b.status === "near" ? "rgba(255,176,32,0.15)" : "rgba(10,132,255,0.15)",
+                            color: b.status === "over" ? "var(--purch-coral)" : b.status === "near" ? "var(--purch-gold)" : "var(--purch-accent)",
                           }}
                         >
                           {b.status === "over" ? "Over budget" : b.status === "near" ? "Almost there" : "On track"}
                         </span>
                       </div>
                       <div className="flex items-baseline mb-2">
-                        <span className="font-['JetBrains_Mono'] text-2xl font-bold">₱{b.spent.toLocaleString()}</span>
-                        <span className="font-['JetBrains_Mono'] text-xs text-[color:var(--purch-taupe)] ml-1">/ ₱{b.limit_amount.toLocaleString()}</span>
+                        <span className="font-['JetBrains_Mono'] text-2xl font-bold" style={{ color: "var(--purch-ink)" }}>₱{b.spent.toLocaleString()}</span>
+                        <span className="font-['JetBrains_Mono'] text-xs text-[color:var(--purch-muted-ink)] ml-1">/ ₱{b.limit_amount.toLocaleString()}</span>
                       </div>
                       <div className="h-1.5 rounded-full" style={{ background: "var(--purch-line)" }}>
                         <div className="h-full rounded-full" style={{ width: `${Math.min(b.pct, 100)}%`, background: fill }} />
                       </div>
                       <div className="flex justify-between mt-1.5 text-[11.5px]">
-                        <span className="font-['JetBrains_Mono] text-[color:var(--purch-taupe)]">{b.pct.toFixed(0)}% used</span>
+                        <span className="font-['JetBrains_Mono] text-[color:var(--purch-muted-ink)]">{b.pct.toFixed(0)}% used</span>
                         {b.remaining >= 0 ? (
-                          <span className="font-['JetBrains_Mono] text-[color:var(--purch-pine)]">₱{b.remaining.toLocaleString()} left</span>
+                          <span className="font-['JetBrains_Mono] text-[color:var(--purch-teal)]">₱{b.remaining.toLocaleString()} left</span>
                         ) : (
-                          <span className="font-['JetBrains_Mono] text-[color:var(--purch-rust)]">₱{(-b.remaining).toLocaleString()} over</span>
+                          <span className="font-['JetBrains_Mono] text-[color:var(--purch-coral)]">₱{(-b.remaining).toLocaleString()} over</span>
                         )}
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </FadeInSection>
           )}
 
           {/* All transactions — filter by category + searchable */}
-          <div className="mt-4 rounded-lg border p-5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+          <FadeInSection className="mt-4 rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }} delay={300}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <h3 className="font-['Fraunces'] font-semibold text-lg m-0">All transactions</h3>
+              <h3 className="font-sans font-semibold text-lg m-0">All transactions</h3>
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative">
-                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--purch-taupe)]" />
+                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--purch-muted-ink)]" />
                   <input
                     value={txQuery}
                     onChange={(e) => setTxQuery(e.target.value)}
                     placeholder="Search item or category…"
-                    className="h-10 w-full rounded-lg pl-9 pr-3 text-[13px] bg-[color:var(--purch-paper)] sm:w-[220px]"
+                    className="h-10 w-full rounded-lg pl-9 pr-3 text-[13px] bg-white sm:w-[220px]"
                     style={{ border: "1px solid var(--purch-line-soft)" }}
                   />
                 </div>
                 <select
                   value={txCategory}
                   onChange={(e) => setTxCategory(e.target.value)}
-                  className="h-10 rounded-lg px-3 text-[13px] font-semibold bg-[color:var(--purch-paper)]"
+                  className="h-10 rounded-lg px-3 text-[13px] font-semibold bg-white"
                   style={{ border: "1px solid var(--purch-line-soft)" }}
                 >
                   <option value="">All categories</option>
@@ -442,7 +682,7 @@ export default function AnalyticsPage() {
                             <>
                               <td className="py-2.5 pr-3 font-medium">{t.item || "—"}</td>
                               <td className="py-2.5 pr-3">
-                                <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: "#DCEDE6", color: "var(--purch-pine)" }}>
+                                <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: "#E0F5EF", color: "var(--purch-pine)" }}>
                                   {t.category || "Uncategorized"}
                                 </span>
                               </td>
@@ -484,7 +724,7 @@ export default function AnalyticsPage() {
                 <span className="italic">Scroll to see all — top 5 shown</span>
               )}
             </div>
-          </div>
+          </FadeInSection>
         </>
       )}
     </PageShell>

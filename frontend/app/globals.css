@@ -1,35 +1,66 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @import "tailwindcss";
 
 @source "../app";
 @source "../lib";
 
-/* Purch — Espresso + Rust redesign palette (mirrors purch-redesign-preview.jsx). */
+/* Purch — Mac / Apple visual identity. */
 
 :root {
-  --purch-ink: #1C1410;
-  --purch-paper: #FAF3E7;
-  --purch-rust: #C24E2B;
-  --purch-pine: #2F6E5C;
-  --purch-gold: #E8B33D;
-  --purch-taupe: #8B7355;
+  /* Font families */
+  --font-inter: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-instrument-serif: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-fragment-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-ui-monospace: sfmono, 'SF Mono', 'Courier New', monospace;
 
-  --purch-bg: #EFE7D6;          /* app canvas / right hero panel */
-  --purch-bg-deep: #DCD3C0;     /* outer preview backdrop */
-  --purch-line: #E0D5C2;        /* hairline borders */
-  --purch-line-soft: #D8CFC2;   /* input borders */
-  --purch-muted-ink: #B8AC9C;   /* light text on dark */
-  --purch-paper-soft: #EFE7D6;  /* inner card tints */
+  /* Type scale — Visitors tight tracking */
+  --text-caption: 12px;
+  --text-body-sm: 14px;
+  --text-body: 16px;
+  --text-subheading: 18px;
+  --text-heading-sm: 24px;
+  --text-heading: 36px;
+  --text-heading-lg: 48px;
+  --text-display: 60px;
 
-  --purch-radius-sm: 4px;
-  --purch-radius-md: 8px;
-  --purch-radius-lg: 12px;
-  --purch-radius-xl: 20px;
-  --purch-shadow-sm: 0 4px 16px rgba(28, 20, 16, 0.08);
-  --purch-shadow-md: 0 8px 24px rgba(28, 20, 16, 0.12);
-  --purch-shadow-lg: 0 12px 32px rgba(28, 20, 16, 0.14);
-  --purch-shadow-bubble: 0 4px 14px rgba(28, 20, 16, 0.18);
+  /* Surfaces — Visitors palette */
+  --purch-ink: #181925;        /* Carbon — primary text */
+  --purch-paper: #ffffff;      /* Paper White — card surfaces */
+  --purch-bg: #ffffff;         /* Canvas */
+  --purch-bg-deep: #fafafa;    /* Linen — secondary surfaces */
+
+  /* Accents — Visitors palette */
+  --purch-accent: #7c6edc;     /* Lavender — primary action */
+  --purch-accent-deep: #8575e8; /* Iris — secondary action */
+  --purch-violet: #181925;     /* Carbon — dark surfaces */
+  --purch-teal: #33c758;       /* Mint */
+  --purch-coral: #ff3e00;      /* Ember */
+  --purch-gold: #ffa600;       /* Amber */
+  --purch-pine: #33c758;       /* Mint */
+  --purch-rust: #7c6edc;       /* Lavender */
+  --purch-taupe: #999999;      /* Ash */
+  --purch-sky: #2c78fc;        /* Sky */
+  --purch-magenta: #d6409f;    /* Magenta */
+
+  /* Structure */
+  --purch-line: #e8e8e8;       /* Fog — borders */
+  --purch-line-soft: #f5f5f5;  /* Mist */
+  --purch-muted-ink: #666666;  /* Graphite */
+  --purch-paper-soft: #fafafa; /* Linen */
+
+  /* Radius — Visitors pill convention */
+  --purch-radius-sm: 8px;
+  --purch-radius-md: 12px;
+  --purch-radius-lg: 16px;
+  --purch-radius-xl: 24px;
+  --purch-radius-pill: 9999px;
+
+  /* Shadows — Visitors subtle elevation */
+  --purch-shadow-sm: rgba(0, 0, 0, 0.08) 0px 1px 1px 1px, rgba(0, 0, 0, 0.06) 0px 0px 0px 0.5px;
+  --purch-shadow-md: rgba(0, 0, 0, 0.06) 0px 1px 3px 0px, rgba(0, 0, 0, 0.06) 0px 8px 16px 0px, rgba(0, 0, 0, 0.02) 0px 0px 0px 1px;
+  --purch-shadow-lg: rgba(0, 0, 0, 0.06) 0px 1px 3px 0px, rgba(0, 0, 0, 0.06) 0px 8px 16px 0px, rgba(0, 0, 0, 0.02) 0px 0px 0px 1px;
+  --purch-shadow-bubble: rgba(0, 0, 0, 0.08) 0px 1px 1px 0px, rgba(0, 0, 0, 0.05) 0px 0px 0px 1px;
 }
 
 * { box-sizing: border-box; }
@@ -47,7 +78,19 @@ body {
 
 a { color: inherit; text-decoration: none; }
 
-.font-display { font-family: 'Fraunces', ui-serif, Georgia, serif; letter-spacing: -0.01em; }
+/* Typography utility classes with heavy negative tracking */
+.text-caption { font-size: 12px; line-height: 1; letter-spacing: -0.06em; }
+.text-body-sm { font-size: 14px; line-height: 1.43; letter-spacing: -0.025em; }
+.text-body { font-size: 18px; line-height: 1.33; letter-spacing: -0.025em; font-weight: 500; }
+.text-subheading { font-size: 24px; line-height: 1.17; letter-spacing: -0.025em; font-weight: 600; }
+.text-heading-sm { font-size: 28px; line-height: 1.14; letter-spacing: -0.025em; font-weight: 700; }
+.text-heading { font-size: 48px; line-height: 1.13; letter-spacing: -0.025em; font-weight: 700; }
+.text-display { font-size: 96px; line-height: 1; letter-spacing: -0.067em; font-weight: 700; }
+
+.font-serif-display { font-family: var(--font-instrument-serif); }
+.font-mono-fragment { font-family: var(--font-fragment-mono); }
+.font-mono-ui { font-family: var(--font-ui-monospace); font-size: 10px; line-height: 1.7; letter-spacing: -0.006em; font-weight: 500; }
+
 .font-mono-tab { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -80,11 +123,10 @@ a { color: inherit; text-decoration: none; }
 }
 
 .purch-bubble-user {
-  background: var(--purch-ink);
+  background: var(--purch-accent);
   color: var(--purch-paper);
   padding: 9px 14px;
   border-radius: var(--purch-radius-sm);
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 13px;
   box-shadow: var(--purch-shadow-bubble);
 }
@@ -102,7 +144,7 @@ a { color: inherit; text-decoration: none; }
   padding: 6px 12px;
   border-radius: 20px;
   border: 1px solid var(--purch-taupe);
-  color: #D8CFC2;
+  color: var(--purch-muted-ink);
   font-size: 12px;
 }
 
@@ -142,10 +184,35 @@ a { color: inherit; text-decoration: none; }
 
 /* Soft pulse to draw the eye to the primary auth action. */
 @keyframes purch-cta-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(194, 78, 43, 0.0); }
-  50% { box-shadow: 0 0 0 6px rgba(194, 78, 43, 0.12); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(10, 132, 255, 0.0); }
+  50% { box-shadow: 0 0 0 6px rgba(10, 132, 255, 0.12); }
 }
 .purch-cta-pulse { animation: purch-cta-pulse 2.6s ease-in-out infinite; }
+
+/* Scroll-triggered reveal — fade + slide up. Add .purch-reveal to element. */
+.purch-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 500ms ease, transform 500ms ease;
+}
+.purch-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.purch-reveal.delay-100.is-visible { transition-delay: 100ms; }
+.purch-reveal.delay-200.is-visible { transition-delay: 200ms; }
+.purch-reveal.delay-300.is-visible { transition-delay: 300ms; }
+
+/* Hide nav pill bar on mobile */
+@media (max-width: 768px) {
+  .v-nav-pill { display: none !important; }
+}
+
+/* Typewriter cursor blink */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
 
 /* Global toast — single live notification that slides in from the right. */
 @keyframes purch-toast-in {

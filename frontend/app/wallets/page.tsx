@@ -1,12 +1,36 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { RefreshCw, Plus } from "lucide-react";
+import { RefreshCw, Plus, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { api, WalletRow, WalletCreate } from "@/lib/api";
 import { PageShell, eyebrow, primaryButton, outlineButton, useToast } from "@/lib/ui";
-import { ChatSidebar } from "@/components/ChatSidebar";
 import { isGuest } from "@/lib/guest";
+import { loadFavorites, saveFavorites, toggleFavorite as toggleFav } from "@/components/WalletStrip";
+
+const MAX_FAVORITES = 3;
+
+/** Try to add id to favorites. Returns true on success, false if limit hit. */
+function tryAddFavorite(id: number, rows: WalletRow[]): boolean {
+  const favs = loadFavorites();
+  if (favs.has(id)) {
+    // Already a favorite — just toggle off
+    toggleFav(id);
+    return true;
+  }
+  if (favs.size >= MAX_FAVORITES) {
+    return false; // limit reached
+  }
+  toggleFav(id);
+  return true;
+}
+
+/** Build a user-facing message listing the current favorite wallet names. */
+function favoriteLimitMessage(rows: WalletRow[]): string {
+  const favs = loadFavorites();
+  const names = rows.filter((w) => favs.has(w.id)).map((w) => w.name);
+  return `You can only favorite ${MAX_FAVORITES} wallets. Currently: ${names.join(", ")}. Remove one first.`;
+}
 
 const WALLET_TYPES = ["Cash", "Bank", "Savings", "Debt", "Lent", "Borrowed", "E-wallet", "Investment"];
 
@@ -17,9 +41,9 @@ function groupOf(wt: string): "Debit" | "Lent" | "Borrowed" {
   return "Debit";
 }
 const GROUP_COLOR: Record<string, string> = {
-  Debit: "var(--purch-pine)",
+  Debit: "var(--purch-teal)",
   Lent: "var(--purch-gold)",
-  Borrowed: "var(--purch-rust)",
+  Borrowed: "var(--purch-coral)",
 };
 
 export default function WalletsPage() {
@@ -28,16 +52,31 @@ export default function WalletsPage() {
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState<WalletCreate>({ name: "", wallet_type: "Cash", balance: "", note: "" });
+  const [form, setForm] = useState<WalletCreate>({ name: "", wallet_type: "Cash", balance: "", note: "", color: "" });
+  const [wantFavorite, setWantFavorite] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [cardForm, setCardForm] = useState<WalletCreate>({ name: "", wallet_type: "Cash", balance: "", note: "" });
+  const [cardForm, setCardForm] = useState<WalletCreate>({ name: "", wallet_type: "Cash", balance: "", note: "", color: "" });
   const [cardSaving, setCardSaving] = useState(false);
   const [error, setError] = useState("");
+  const [favVersion, setFavVersion] = useState(0); // increments to force re-render on favorite toggle
   const { push: toastPush } = useToast();
 
   useEffect(() => {
     if (error) toastPush(error, "danger");
   }, [error, toastPush]);
+
+  /** Toggle favorite and force re-render so the star updates instantly. */
+  function handleToggleFav(id: number) {
+    if (!loadFavorites().has(id)) {
+      const favs = loadFavorites();
+      if (favs.size >= MAX_FAVORITES) {
+        setError(favoriteLimitMessage(rows));
+        return;
+      }
+    }
+    toggleFav(id);
+    setFavVersion((v) => v + 1);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,6 +107,23 @@ export default function WalletsPage() {
     });
   }, [load]);
 
+  // Bidirectional scroll reveal
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add("is-visible");
+          else entry.target.classList.remove("is-visible");
+        });
+      },
+      { threshold: 0.1 }
+    );
+    const timer = setTimeout(() => {
+      document.querySelectorAll(".purch-reveal").forEach((el) => observer.observe(el));
+    }, 100);
+    return () => { observer.disconnect(); clearTimeout(timer); };
+  }, [authed]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) {
@@ -87,9 +143,24 @@ export default function WalletsPage() {
       } else {
         await api.wallets.create(form);
       }
-      setForm({ name: "", wallet_type: "Cash", balance: "", note: "" });
+      setForm({ name: "", wallet_type: "Cash", balance: "", note: "", color: "" });
       setFormOpen(false);
       await load();
+      // After creation, add to favorites if requested
+      if (wantFavorite && editingId == null) {
+        // Check limit before adding
+        const favsAfterCreate = loadFavorites();
+        if (favsAfterCreate.size < MAX_FAVORITES) {
+          // Find the newly created wallet by name (most recent match)
+          const fresh = await api.wallets.list(true);
+          const wallets = fresh.wallets || [];
+          const newest = wallets.filter((w: WalletRow) => w.name === form.name.trim()).pop();
+          if (newest) {
+            toggleFav(newest.id);
+          }
+        }
+      }
+      setWantFavorite(false);
     } catch (e: any) {
       setError(e.message || (editingId != null ? "Failed to update wallet." : "Failed to create wallet."));
     } finally {
@@ -143,6 +214,13 @@ export default function WalletsPage() {
     try {
       await api.wallets.delete(id);
       await load();
+    } catch (e: any) {
+      // Wallet may belong to a stale session — reload to sync
+      if (e.message?.includes("404")) {
+        await load();
+      } else {
+        throw e;
+      }
     } finally {
       setLoading(false);
     }
@@ -150,11 +228,11 @@ export default function WalletsPage() {
 
   if (!authed) {
     return (
-      <PageShell active="/wallets" sidebar={<ChatSidebar />}>
+      <PageShell active="/wallets">
         <div className="mx-auto max-w-md">
-          <div className="rounded-lg p-8 text-center" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
-            <h1 className="font-['Fraunces'] font-semibold text-3xl m-0 mb-2">Wallets</h1>
-            <p className="text-[color:var(--purch-taupe)] text-sm">Sign in to manage your wallets.</p>
+          <div className="rounded-2xl p-8 text-center" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
+            <h1 className="font-sans font-semibold text-[30px] m-0 mb-2">Wallets</h1>
+            <p className="text-[14px] text-[color:var(--purch-muted-ink)] m-0">Sign in to manage your wallets.</p>
             <a href="/" className={`${primaryButton} mt-4`}>Sign in</a>
           </div>
         </div>
@@ -164,14 +242,14 @@ export default function WalletsPage() {
 
   if (loading && !rows.length) {
     return (
-      <PageShell active="/wallets" sidebar={<ChatSidebar />}>
+      <PageShell active="/wallets">
         <div className="flex flex-col items-center justify-center gap-4 py-24">
           <div
-            className="h-10 w-10 rounded-full border-2 border-[color:var(--purch-line)] border-t-[color:var(--purch-pine)] animate-spin"
+            className="h-10 w-10 rounded-full border-2 border-[color:var(--purch-line)] border-t-[color:var(--purch-accent)] animate-spin"
             role="status"
             aria-label="Loading"
           />
-          <p className="font-['Fraunces'] text-[15px] text-[color:var(--purch-taupe)] animate-pulse">
+          <p className="font-sans text-[14px] text-[color:var(--purch-muted-ink)] animate-pulse">
             Counting your coins…
           </p>
         </div>
@@ -196,15 +274,15 @@ export default function WalletsPage() {
   const totalMag = Object.values(groups).reduce((s, g) => s + Math.abs(g.amt), 0) || 1;
 
   return (
-    <PageShell active="/wallets" sidebar={<ChatSidebar />}>
+    <PageShell active="/wallets">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
         <div>
           <div className={eyebrow}>Money sources</div>
-          <h1 className="font-['Fraunces'] font-semibold text-[30px] mt-0 mb-2 m-0">
+          <h1 className="font-sans font-semibold text-[30px] mt-0 mb-2 m-0" style={{ letterSpacing: "-0.02em" }}>
             Wallets
           </h1>
-          <p className="text-[13.5px] text-[color:var(--purch-taupe)] max-w-[480px] leading-relaxed m-0">
+          <p className="text-[14px] text-[color:var(--purch-muted-ink)] max-w-[480px] leading-relaxed m-0">
             Name each place your money sits. Purch subtracts a purchase from
             whichever wallet you pick in chat.
           </p>
@@ -213,7 +291,7 @@ export default function WalletsPage() {
           <button onClick={load} disabled={loading} className={`${outlineButton} text-[13px] disabled:opacity-60`}>
             <RefreshCw size={14} /> Refresh
           </button>
-          <button onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "" }); setFormOpen(true); }} className={`${primaryButton} text-[13px]`}>
+          <button onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "", color: "" }); setWantFavorite(false); setFormOpen(true); }} className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-medium transition-opacity hover:opacity-90" style={{ background: "#C4B5FD", color: "#fff" }}>
             <Plus size={14} /> New wallet
           </button>
         </div>
@@ -222,24 +300,48 @@ export default function WalletsPage() {
       {/* Create / Edit form — shown immediately below the header when
           "New wallet" or "Edit" is clicked, above the summary cards. */}
       {formOpen && (
-        <form onSubmit={submit} className="rounded-lg border p-5 mb-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+        <form onSubmit={submit} className="rounded-2xl p-5 mb-4" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-['Fraunces'] font-semibold text-lg m-0">{editingId != null ? "Edit wallet" : "New wallet"}</h3>
+            <h3 className="font-sans font-semibold text-lg m-0">{editingId != null ? "Edit wallet" : "New wallet"}</h3>
             {editingId != null && (
-              <button type="button" onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "" }); setFormOpen(false); }} className="text-xs text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)]">
+              <button type="button" onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "", color: "" }); setFormOpen(false); }} className="text-xs text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-accent)]">
                 Cancel edit
               </button>
             )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="flex flex-col gap-1">
-              <span className={eyebrow}>Name</span>
+              <div className="flex items-center justify-between">
+                <span className={eyebrow}>Name</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!wantFavorite) {
+                      const favs = loadFavorites();
+                      if (favs.size >= MAX_FAVORITES) {
+                        setError(favoriteLimitMessage(rows));
+                        return;
+                      }
+                    }
+                    setWantFavorite(!wantFavorite);
+                    setFavVersion((v) => v + 1);
+                  }}
+                  className="p-0.5 rounded hover:bg-black/5 transition-colors"
+                  title={wantFavorite ? "Remove from favorites" : "Add to favorites"}
+                >
+                  <Star
+                    size={16}
+                    style={{ color: wantFavorite ? "#F59E0B" : "var(--purch-taupe)" }}
+                    fill={wantFavorite ? "#F59E0B" : "none"}
+                  />
+                </button>
+              </div>
               <input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 maxLength={40}
                 placeholder="e.g. GCash"
-                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
+                className="rounded-lg px-3.5 py-2.5 text-sm bg-white"
                 style={{ border: "1px solid var(--purch-line-soft)" }}
               />
             </label>
@@ -248,7 +350,7 @@ export default function WalletsPage() {
               <select
                 value={form.wallet_type}
                 onChange={(e) => setForm({ ...form, wallet_type: e.target.value })}
-                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
+                className="rounded-lg px-3.5 py-2.5 text-sm bg-white"
                 style={{ border: "1px solid var(--purch-line-soft)" }}
               >
                 {WALLET_TYPES.map((t) => (
@@ -262,7 +364,7 @@ export default function WalletsPage() {
                 value={form.balance}
                 onChange={(e) => setForm({ ...form, balance: e.target.value })}
                 placeholder="0.00"
-                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
+                className="rounded-lg px-3.5 py-2.5 text-sm bg-white"
                 style={{ border: "1px solid var(--purch-line-soft)" }}
               />
             </label>
@@ -272,16 +374,35 @@ export default function WalletsPage() {
                 value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
                 placeholder="optional"
-                className="rounded-md px-3.5 py-2.5 text-sm bg-[color:var(--purch-paper)]"
+                className="rounded-lg px-3.5 py-2.5 text-sm bg-white"
                 style={{ border: "1px solid var(--purch-line-soft)" }}
               />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={eyebrow}>Color</span>
+              <div className="flex flex-wrap gap-2 items-center">
+                {["#B8860B", "#0D1B4C", "#7A1F2B", "#2F4F3F", "#4A2C5E", "#1F5C5C", "#5C3A1E", "#3E3E3E", "#1E4620", "#6B2F5F"].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setForm({ ...form, color: form.color === c ? "" : c })}
+                    className="w-7 h-7 rounded-full border-2 transition-all flex-shrink-0"
+                    style={{
+                      background: c,
+                      borderColor: form.color === c ? "var(--purch-ink)" : "transparent",
+                      boxShadow: form.color === c ? `0 0 0 2px var(--purch-bg), 0 0 0 4px ${c}` : "none",
+                    }}
+                    title={form.color === c ? "Remove color" : c}
+                  />
+                ))}
+              </div>
             </label>
           </div>
           <div className="flex gap-2 mt-4">
             <button type="submit" disabled={loading} className={`${primaryButton} text-sm disabled:opacity-60`}>
               {loading ? "Saving…" : editingId != null ? "Save changes" : "Save wallet"}
             </button>
-            <button type="button" onClick={() => { setFormOpen(false); setError(""); }} className={`${outlineButton} text-sm`}>
+            <button type="button" onClick={() => { setFormOpen(false); setError(""); setWantFavorite(false); }} className={`${outlineButton} text-sm`}>
               Cancel
             </button>
           </div>
@@ -290,33 +411,33 @@ export default function WalletsPage() {
 
       {/* Net worth / Assets / Liabilities */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-5">
-        <div className="rounded-lg p-5 text-[color:var(--purch-paper)]" style={{ background: "var(--purch-ink)" }}>
-          <div className={eyebrow} style={{ color: "var(--purch-taupe)" }}>Net worth</div>
-          <div className="font-['JetBrains_Mono'] text-[28px] mt-2" style={{ color: "var(--purch-gold)" }}>
+        <div className="rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
+          <div className={eyebrow}>Net worth</div>
+          <div className="font-['JetBrains_Mono'] text-[28px] mt-2" style={{ color: "var(--purch-ink)" }}>
             ₱{summary?.net_display ?? "0.00"}
           </div>
-          <div className="text-xs text-[#B8AC9C] mt-1.5">Everything you hold, minus everything you owe.</div>
+          <div className="text-xs text-[color:var(--purch-muted-ink)] mt-1.5">Everything you hold, minus everything you owe.</div>
         </div>
-        <div className="rounded-lg p-5 border" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+        <div className="rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
           <div className={eyebrow}>Assets</div>
-          <div className="font-['JetBrains_Mono'] text-[24px] mt-2" style={{ color: "var(--purch-pine)" }}>
+          <div className="font-['JetBrains_Mono'] text-[24px] mt-2" style={{ color: "var(--purch-ink)" }}>
             ₱{summary?.assets_display ?? "0.00"}
           </div>
-          <div className="text-xs text-[#B8AC9C] mt-1.5">Cash, bank, savings, and money you've lent out — what you own.</div>
+          <div className="text-xs text-[color:var(--purch-muted-ink)] mt-1.5">Cash, bank, savings, and money you've lent out — what you own.</div>
         </div>
-        <div className="rounded-lg p-5 border" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+        <div className="rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
           <div className={eyebrow}>Liabilities</div>
-          <div className="font-['JetBrains_Mono'] text-[24px] mt-2" style={{ color: "var(--purch-rust)" }}>
+          <div className="font-['JetBrains_Mono'] text-[24px] mt-2" style={{ color: "var(--purch-ink)" }}>
             ₱{summary?.liabilities_display ?? "0.00"}
           </div>
-          <div className="text-xs text-[color:var(--purch-taupe)] mt-1.5">Debts and money you've borrowed — what you owe.</div>
+          <div className="text-xs text-[color:var(--purch-muted-ink)] mt-1.5">Debts and money you've borrowed — what you owe.</div>
         </div>
       </div>
 
       {/* Where your money sits */}
-      <div className="rounded-lg border p-5 mb-4" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+      <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
         <div className="flex justify-between items-baseline mb-4">
-          <h3 className="font-['Fraunces'] font-semibold text-lg m-0">Where your money sits</h3>
+          <h3 className="font-sans font-semibold text-lg m-0">Where your money sits</h3>
           <span className="text-xs text-[color:var(--purch-taupe)]">
             {active.length} active wallet{active.length === 1 ? "" : "s"}
           </span>
@@ -328,7 +449,7 @@ export default function WalletsPage() {
             const groupWallets = active.filter((w) => groupOf(w.wallet_type) === g);
             const groupTotal = groupWallets.reduce((s, w) => s + w.balance, 0) || 1;
             return (
-              <div key={g} className="rounded-md p-4" style={{ background: "var(--purch-bg)" }}>
+              <div key={g} className="rounded-xl p-4" style={{ background: "var(--purch-paper-soft)" }}>
                 <div className="flex justify-between items-center mb-1.5">
                   <span className="font-semibold text-sm">{g}</span>
                   <span className="font-['JetBrains_Mono] text-[13.5px]" style={{ color }}>
@@ -374,7 +495,7 @@ export default function WalletsPage() {
 
       {/* Wallet cards — square, rounded */}
       {active.length === 0 && !loading ? (
-        <div className="rounded-lg border p-10 text-center text-[color:var(--purch-taupe)] italic" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
+        <div className="rounded-2xl p-10 text-center text-[color:var(--purch-muted-ink)]" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
           No wallets yet — create one to start tracking where your money lives.
         </div>
       ) : (
@@ -385,27 +506,46 @@ export default function WalletsPage() {
               return (
                 <div
                   key={w.id}
-                  className="rounded-xl border p-4 flex flex-col gap-3"
-                  style={{ background: "var(--purch-paper)", borderColor: "var(--purch-rust)" }}
+                  className="rounded-2xl p-4 flex flex-col gap-3"
+                  style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}
                 >
                   <div className="flex flex-col gap-2">
                     <label className="flex flex-col gap-1">
                       <span className={eyebrow}>Name</span>
-                      <input value={cardForm.name} onChange={(e) => setCardForm({ ...cardForm, name: e.target.value })} className="rounded-md px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                      <input value={cardForm.name} onChange={(e) => setCardForm({ ...cardForm, name: e.target.value })} className="rounded-lg px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }} />
                     </label>
                     <label className="flex flex-col gap-1">
                       <span className={eyebrow}>Type</span>
-                      <select value={cardForm.wallet_type} onChange={(e) => setCardForm({ ...cardForm, wallet_type: e.target.value })} className="rounded-md px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }}>
+                      <select value={cardForm.wallet_type} onChange={(e) => setCardForm({ ...cardForm, wallet_type: e.target.value })} className="rounded-lg px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }}>
                         {WALLET_TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
                       </select>
                     </label>
                     <label className="flex flex-col gap-1">
                       <span className={eyebrow}>Balance</span>
-                      <input value={cardForm.balance} onChange={(e) => setCardForm({ ...cardForm, balance: e.target.value })} className="rounded-md px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                      <input value={cardForm.balance} onChange={(e) => setCardForm({ ...cardForm, balance: e.target.value })} className="rounded-lg px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }} />
                     </label>
                     <label className="flex flex-col gap-1">
                       <span className={eyebrow}>Note</span>
-                      <input value={cardForm.note} onChange={(e) => setCardForm({ ...cardForm, note: e.target.value })} className="rounded-md px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                      <input value={cardForm.note} onChange={(e) => setCardForm({ ...cardForm, note: e.target.value })} className="rounded-lg px-2.5 py-1.5 text-sm" style={{ border: "1px solid var(--purch-line-soft)" }} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className={eyebrow}>Color</span>
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        {["#B8860B", "#0D1B4C", "#7A1F2B", "#2F4F3F", "#4A2C5E", "#1F5C5C", "#5C3A1E", "#3E3E3E", "#1E4620", "#6B2F5F"].map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => setCardForm({ ...cardForm, color: cardForm.color === c ? "" : c })}
+                            className="w-6 h-6 rounded-full border-2 transition-all flex-shrink-0"
+                            style={{
+                              background: c,
+                              borderColor: cardForm.color === c ? "var(--purch-ink)" : "transparent",
+                              boxShadow: cardForm.color === c ? `0 0 0 1px var(--purch-bg), 0 0 0 3px ${c}` : "none",
+                            }}
+                            title={cardForm.color === c ? "Remove color" : c}
+                          />
+                        ))}
+                      </div>
                     </label>
                   </div>
                   <div className="flex gap-2 mt-1">
@@ -420,26 +560,41 @@ export default function WalletsPage() {
             return (
               <div
                 key={w.id}
-                className="rounded-xl border p-4 flex flex-col"
-                style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)", minHeight: 132 }}
+                className="rounded-2xl p-4 flex flex-col"
+                style={{ background: w.color || "var(--purch-paper)", color: w.color ? "#fff" : "var(--purch-ink)", boxShadow: "var(--purch-shadow-sm)", minHeight: 132 }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="font-semibold text-[14px] leading-tight mb-2 break-words">{w.name}</div>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ background: "#DCEDE6", color: "var(--purch-pine)" }}>
-                    {w.wallet_type.toUpperCase()}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" style={{ background: w.color ? "rgba(255,255,255,0.2)" : "var(--purch-paper-soft)", color: w.color ? "#fff" : "var(--purch-muted-ink)" }}>
+                      {w.wallet_type}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFav(w.id)}
+                      className="p-0.5 rounded hover:bg-black/5 transition-colors"
+                      title={loadFavorites().has(w.id) ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      <Star
+                        size={12}
+                        style={{ color: loadFavorites().has(w.id) ? "#F59E0B" : "var(--purch-taupe)" }}
+                        fill={loadFavorites().has(w.id) ? "#F59E0B" : "none"}
+                      />
+                    </button>
+                  </div>
                 </div>
                 <div className="font-['JetBrains_Mono'] text-[20px] mt-auto">₱{w.balance_display}</div>
-                {w.note ? <div className="text-[11px] text-[color:var(--purch-taupe)] mt-1 truncate" title={w.note}>{w.note}</div> : null}
-                <div className="flex gap-3 text-[11.5px] mt-3 pt-2" style={{ borderTop: "1px solid var(--purch-line-soft)" }}>
+                {w.note ? <div className="text-[11px] mt-1 truncate" title={w.note} style={{ color: w.color ? "rgba(255,255,255,0.7)" : "var(--purch-muted-ink)" }}>{w.note}</div> : null}
+                <div className="flex gap-3 text-[11.5px] mt-3 pt-2" style={{ borderTop: w.color ? "1px solid rgba(255,255,255,0.2)" : "1px solid var(--purch-line-soft)" }}>
                   <button
-                    onClick={() => { setCardForm({ name: w.name, wallet_type: w.wallet_type, balance: String(w.balance), note: w.note ?? "" }); setEditingId(w.id); }}
-                    className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-pine)] transition-colors"
+                    onClick={() => { setCardForm({ name: w.name, wallet_type: w.wallet_type, balance: String(w.balance), note: w.note ?? "", color: w.color ?? "" }); setEditingId(w.id); }}
+                    className="hover:opacity-70 transition-opacity"
+                    style={{ color: w.color ? "#fff" : "var(--purch-taupe)" }}
                   >
                     Edit
                   </button>
-                  <button onClick={() => archive(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">Archive</button>
-                  <button onClick={() => remove(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">Delete</button>
+                  <button onClick={() => archive(w.id)} className="hover:opacity-70 transition-opacity" style={{ color: w.color ? "#fff" : "var(--purch-taupe)" }}>Archive</button>
+                  <button onClick={() => remove(w.id)} className="hover:opacity-70 transition-opacity" style={{ color: w.color ? "#fff" : "var(--purch-taupe)" }}>Delete</button>
                 </div>
               </div>
             );
@@ -455,14 +610,14 @@ export default function WalletsPage() {
             {archived.map((w) => (
               <div
                 key={w.id}
-                className="rounded-xl border p-4 flex flex-col opacity-70"
-                style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)", minHeight: 132 }}
+                className="rounded-2xl p-4 flex flex-col opacity-70"
+                style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)", minHeight: 132 }}
               >
-                <div className="font-semibold text-[14px] mb-2 break-words">{w.name}</div>
-                <div className="font-['JetBrains_Mono'] text-[20px] mt-auto">₱{w.balance_display}</div>
+                <div className="font-semibold text-[14px] mb-2 break-words" style={{ color: "var(--purch-ink)" }}>{w.name}</div>
+                <div className="font-['JetBrains_Mono'] text-[20px] mt-auto" style={{ color: "var(--purch-ink)" }}>₱{w.balance_display}</div>
                 <div className="flex gap-3 text-[11.5px] mt-3 pt-2" style={{ borderTop: "1px solid var(--purch-line-soft)" }}>
-                  <button onClick={() => restore(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-pine)] transition-colors">Restore</button>
-                  <button onClick={() => remove(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] transition-colors">Delete</button>
+                  <button onClick={() => restore(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-teal)] transition-colors">Restore</button>
+                  <button onClick={() => remove(w.id)} className="text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-accent)] transition-colors">Delete</button>
                 </div>
               </div>
             ))}

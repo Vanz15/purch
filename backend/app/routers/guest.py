@@ -41,6 +41,20 @@ def guest_token(body: GuestRequest):
     if not guest_id or not guest_id.startswith("guest-"):
         guest_id = f"guest-{uuid.uuid4().hex}"
 
+    # Ensure the guest user exists in the users table (FK requirement for wallets)
+    try:
+        from app.services.db_backend import get_engine
+        from sqlalchemy import text
+        from datetime import datetime
+        engine = get_engine()
+        with engine.begin() as conn:
+            conn.execute(text(
+                "INSERT INTO users (id, created_at) VALUES (:id, :ts) "
+                "ON CONFLICT (id) DO NOTHING"
+            ), {"id": guest_id, "ts": datetime.utcnow()})
+    except Exception:
+        pass  # best-effort — Supabase auth may handle this already
+
     now = int(time.time())
     payload = {
         "sub": guest_id,

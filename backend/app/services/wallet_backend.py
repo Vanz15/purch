@@ -148,10 +148,11 @@ def _row_to_wallet(r: object) -> dict[str, str | int | float | bool]:
         "balance": _to_float(r[3]),
         "note": str(r[4] or ""),
         "is_archived": bool(r[5]),
-    }
+        "color": str(r[6] or ""),
+        }
 
 
-_SELECT_COLS = "id, name, wallet_type, balance, note, is_archived"
+_SELECT_COLS = "id, name, wallet_type, balance, note, is_archived, color"
 
 
 def list_wallets(user_id: str, include_archived: bool = False) -> list[dict]:
@@ -192,6 +193,7 @@ def create_wallet(
     wallet_type: str,
     balance: float,
     note: str = "",
+    color: str = "",
 ) -> int:
     """Create a wallet and seed its opening ledger entry."""
     name = (name or "").strip()
@@ -216,8 +218,8 @@ def create_wallet(
             text(
                 "INSERT INTO wallets "
                 "(user_id, name, wallet_type, balance, starting_balance, "
-                "note, is_archived, created_at, updated_at) VALUES "
-                "(:uid, :name, :wtype, :bal, :bal, :note, :arch, :ts, :ts) "
+                "note, color, is_archived, created_at, updated_at) VALUES "
+                "(:uid, :name, :wtype, :bal, :bal, :note, :color, :arch, :ts, :ts) "
                 "RETURNING id"
             ),
             {
@@ -226,6 +228,7 @@ def create_wallet(
                 "wtype": wallet_type,
                 "bal": float(balance or 0.0),
                 "note": (note or "").strip() or None,
+                "color": (color or "").strip()[:24] or None,
                 "arch": False,
                 "ts": now,
             },
@@ -256,6 +259,7 @@ def update_wallet(
     wallet_type: str,
     balance: float,
     note: str = "",
+    color: str = "",
 ) -> None:
     """Rename / retype / re-note a wallet, and record any balance change
     as a `manual_adjustment` ledger entry."""
@@ -286,7 +290,7 @@ def update_wallet(
         conn.execute(
             text(
                 "UPDATE wallets SET name = :name, wallet_type = :wtype, "
-                "balance = :bal, note = :note, updated_at = :ts "
+                "balance = :bal, note = :note, color = :color, updated_at = :ts "
                 "WHERE id = :id AND user_id = :uid"
             ),
             {
@@ -294,6 +298,7 @@ def update_wallet(
                 "wtype": wallet_type,
                 "bal": new_balance,
                 "note": (note or "").strip() or None,
+                "color": (color or "").strip()[:24] or None,
                 "ts": now,
                 "id": int(wallet_id),
                 "uid": user_id,
@@ -365,8 +370,8 @@ def upsert_debt_wallet(
                 text(
                     "INSERT INTO wallets "
                     "(user_id, name, wallet_type, balance, starting_balance, "
-                    "note, is_archived, created_at, updated_at) VALUES "
-                    "(:uid, :name, :wtype, :bal, :bal, :note, :arch, :ts, :ts) "
+                    "note, color, is_archived, created_at, updated_at) VALUES "
+                    "(:uid, :name, :wtype, :bal, :bal, :note, :color, :arch, :ts, :ts) "
                     "RETURNING id"
                 ),
                 {
@@ -375,6 +380,7 @@ def upsert_debt_wallet(
                     "wtype": wallet_type,
                     "bal": amount,
                     "note": (description or "").strip()[:120] or None,
+                    "color": "",
                     "arch": False,
                     "ts": now,
                 },

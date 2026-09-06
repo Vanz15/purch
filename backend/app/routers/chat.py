@@ -24,8 +24,18 @@ from app.deps import get_current_user_id
 from app.services import bootstrap as backend
 from app.services import wallet_backend, wallet_intent
 from app.services.errors import safe_banner_message, safe_error_message
+from app.routers.analytics import _cache, _cache_times
 
 logger = logging.getLogger("purch.chat")
+
+
+def _invalidate_analytics_cache(user_id: str):
+    """Clear analytics cache entries for a user after a DB write."""
+    stale_keys = [k for k in _cache if k[0] == user_id]
+    for k in stale_keys:
+        _cache.pop(k, None)
+        _cache_times.pop(k, None)
+
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -422,6 +432,7 @@ async def send_message(req: ChatRequest, user_id: str = Depends(get_current_user
                     "amount": php_amount,
                     "item": item,
                 }
+                _invalidate_analytics_cache(user_id)
                 tone = backend.get_user_tone(user_id)
                 try:
                     comment = backend.generate_comment(item, php_amount, category, "PHP", tone)
@@ -450,6 +461,7 @@ async def send_message(req: ChatRequest, user_id: str = Depends(get_current_user
                     tx_id = int(edit.get("transaction_id", 0))
                     if edit.get("action") == "delete":
                         backend.delete_transaction(tx_id)
+                        _invalidate_analytics_cache(user_id)
                         ctx.pending_edit = None
                         edit_reply = ("Deleted.", "", False)
                     else:
@@ -458,6 +470,7 @@ async def send_message(req: ChatRequest, user_id: str = Depends(get_current_user
                             amount=float(edit["new_amount"]) if edit.get("new_amount") else None,
                             category=str(edit["new_category"]) if edit.get("new_category") else None,
                         )
+                        _invalidate_analytics_cache(user_id)
                         ctx.pending_edit = None
                         edit_reply = ("Updated!", "", False)
                 except Exception as e:

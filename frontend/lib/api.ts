@@ -1,12 +1,21 @@
 import { createClient } from "@/lib/supabase/client";
 import { getGuestToken, isGuest } from "@/lib/guest";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+// Dynamic API URL — always localhost in dev to prevent "failed to fetch".
+// NEXT_PUBLIC_API_URL is only used in production.
+function resolveApiUrl(): string {
+  // SSR / fallback
+  if (typeof window === "undefined") return "http://127.0.0.1:8000";
+  // Client-side: always derive from the browser origin to avoid stale/dead IPs
+  const origin = window.location.origin.replace(":3000", ":8000");
+  return origin;
+}
 
 async function authedFetch(
   path: string,
   init: RequestInit = {}
 ): Promise<any> {
+  const API_URL = resolveApiUrl();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string>),
@@ -37,39 +46,125 @@ async function authedFetch(
   return res.json();
 }
 
+// Retry-enabled wrapper — retries failed fetches up to 3 times with backoff
+async function retryFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  attempts = 3
+): Promise<T> {
+  let lastErr: any;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await authedFetch(path, init);
+    } catch (e: any) {
+      lastErr = e;
+      // 401 / 403 should not be retried
+      if (e.message?.includes("401") || e.message?.includes("403")) {
+        throw e;
+      }
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, Math.pow(2, i) * 500));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+export interface WalletRow {
+  id: number;
+  name: string;
+  balance: number;
+  balance_display: string;
+  wallet_type: string;
+  note?: string;
+  color?: string;
+  is_archived?: boolean;
+}
+
+export interface WalletCreate {
+  name: string;
+  wallet_type: string;
+  balance: string;
+  note: string;
+  color: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "purch";
+  text: string;
+  meta?: string;
+  is_error?: boolean;
+  transaction?: { transaction_id: number; amount: number; item: string };
+}
+
+export interface ChatResponse {
+  response: string;
+  meta?: string;
+  is_error?: boolean;
+  transaction?: { transaction_id: number; amount: number; item: string };
+  tones?: string[];
+  action?: string;
+  wallet_choices?: WalletRow[];
+  pending_wallet?: any;
+  pending_conversion?: any;
+  pending_edit?: any;
+  alert?: any;
+}
+
+export interface AnalyticsResponse {
+  kpi: { tx_count: number; total: number };
+  trend: Array<{ day: string; iso: string; total: number; count: number }>;
+  trend_peak: number;
+  categories: Array<{ category: string; total: number; count: number; pct_of_total: number }>;
+  top_category: string;
+  top_category_amount: number;
+  budgets: Array<{ category: string; limit_amount: number; spent: number; pct: number; remaining: number; status: string }>;
+  budget_used_pct: number;
+  budget_limit_total: number;
+  budget_spent_total: number;
+  recent: Array<{ item: string; amount: number; category: string; tx_timestamp: string }>;
+  month_label: string;
+  available_months: string[];
+  unavailable?: boolean;
+}
+
+export interface ToneResponse {
+  tone: string;
+}
+
 export const api = {
   chat: {
-    send: (body: ChatRequest) =>
-      authedFetch("/api/chat", { method: "POST", body: JSON.stringify(body) }),
+    send: (body: ChatResponse) =>
+      retryFetch<ChatResponse>("/api/chat", { method: "POST", body: JSON.stringify(body) }),
     chooseWallet: (body: { wallet_id: number; pending_wallet: object }) =>
-      authedFetch("/api/chat/choose-wallet", {
+      retryFetch("/api/chat/choose-wallet", {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    promptChips: () => authedFetch("/api/chat/prompt-chips"),
+    promptChips: () => retryFetch<any>("/api/chat/prompt-chips"),
   },
   wallets: {
     list: (includeArchived = false) =>
-      authedFetch(`/api/wallets?include_archived=${includeArchived}`),
+      retryFetch<any>(`/api/wallets?include_archived=${includeArchived}`),
+    summary: () => retryFetch<any>("/api/wallets/summary"),
     create: (body: WalletCreate) =>
-      authedFetch("/api/wallets", { method: "POST", body: JSON.stringify(body) }),
-    update: (id: number, body: WalletUpdate) =>
-      authedFetch(`/api/wallets/${id}`, {
+      retryFetch("/api/wallets", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    update: (id: number, body: WalletCreate) =>
+      retryFetch(`/api/wallets/${id}`, {
         method: "PUT",
         body: JSON.stringify(body),
       }),
-    delete: (id: number) =>
-      authedFetch(`/api/wallets/${id}`, { method: "DELETE" }),
+    favorite: (id: number) =>
+      retryFetch(`/api/wallets/${id}/favorite`, { method: "POST" }),
     archive: (id: number) =>
-      authedFetch(`/api/wallets/${id}/archive`, { method: "POST" }),
+      retryFetch(`/api/wallets/${id}/archive`, { method: "POST" }),
     restore: (id: number) =>
-      authedFetch(`/api/wallets/${id}/restore`, { method: "POST" }),
-    summary: () => authedFetch("/api/wallets/summary"),
-  },
-  analytics: {
-    get: (year = 0, month = 0) =>
-      authedFetch(`/api/analytics?year=${year}&month=${month}`),
-    months: () => authedFetch(`/api/analytics?year=0&month=0`),
+      retryFetch(`/api/wallets/${id}/restore`, { method: "POST" }),
+    delete: (id: number) =>
+      retryFetch(`/api/wallets/${id}`, { method: "DELETE" }),
   },
   transactions: {
     list: (opts: { category?: string | null; q?: string | null; limit?: number } = {}) => {
@@ -78,149 +173,27 @@ export const api = {
       if (opts.q) params.set("q", opts.q);
       if (opts.limit) params.set("limit", String(opts.limit));
       const qs = params.toString();
-      return authedFetch(`/api/transactions${qs ? `?${qs}` : ""}`);
+      return retryFetch<any>(`/api/transactions${qs ? `?${qs}` : ""}`);
     },
     update: (id: number, body: { item?: string; amount?: number; category?: string }) =>
-      authedFetch(`/api/transactions/${id}`, {
+      retryFetch(`/api/transactions/${id}`, {
         method: "PUT",
         body: JSON.stringify(body),
       }),
     delete: (id: number) =>
-      authedFetch(`/api/transactions/${id}`, { method: "DELETE" }),
+      retryFetch(`/api/transactions/${id}`, { method: "DELETE" }),
+  },
+  analytics: {
+    get: (year: number, month: number) =>
+      retryFetch<AnalyticsResponse>(`/api/analytics?year=${year}&month=${month}`),
+    months: () => retryFetch<AnalyticsResponse>(`/api/analytics?year=0&month=0`),
   },
   tone: {
-    get: () => authedFetch("/api/tone"),
+    get: () => retryFetch<ToneResponse>("/api/tone"),
     set: (tone: string) =>
-      authedFetch("/api/tone", {
+      retryFetch("/api/tone", {
         method: "POST",
         body: JSON.stringify({ tone }),
       }),
   },
 };
-
-// ---- Shared types mirroring the Pydantic models / Reflex TypedDicts ----
-
-export interface ChatMessage {
-  role: "user" | "assistant";
-  text: string;
-  meta: string;
-  time: string;
-  alert: "" | "warning" | "danger";
-}
-
-export interface WalletChoice {
-  id: number;
-  name: string;
-  wallet_type: string;
-  balance_display: string;
-}
-
-export interface ChatRequest {
-  message: string;
-  pending_edit?: Record<string, any> | null;
-  pending_conversion?: Record<string, any> | null;
-  pending_wallet?: Record<string, any> | null;
-  wallet_choices?: WalletChoice[] | null;
-  awaiting_wallet?: boolean;
-  require_wallet?: boolean;
-}
-
-export interface ChatResponse {
-  response: string;
-  meta: string;
-  alert: "" | "warning" | "danger";
-  pending_edit: Record<string, any> | null;
-  pending_conversion: Record<string, any> | null;
-  pending_wallet: Record<string, any> | null;
-  wallet_choices: WalletChoice[];
-  awaiting_wallet: boolean;
-}
-
-export interface WalletCreate {
-  name: string;
-  wallet_type: string;
-  balance: string;
-  note: string;
-}
-
-export interface WalletUpdate {
-  name: string;
-  wallet_type: string;
-  balance: string;
-  note: string;
-}
-
-export interface WalletRow {
-  id: number;
-  name: string;
-  wallet_type: string;
-  balance: number;
-  balance_display: string;
-  note: string;
-  is_archived: boolean;
-  accent: string;
-  pct: number;
-  group: string;
-}
-
-export interface KpiSnapshot {
-  tx_count: number;
-  total: number;
-}
-
-export interface CategoryRow {
-  category: string;
-  total: number;
-  count: number;
-  pct_of_total: number;
-}
-
-export interface TrendPoint {
-  day: string;
-  iso: string;
-  total: number;
-  count: number;
-}
-
-export interface BudgetStatusRow {
-  category: string;
-  limit_amount: number;
-  spent: number;
-  pct: number;
-  remaining: number;
-  status: "on_track" | "near" | "over";
-}
-
-export interface RecentTx {
-  item: string;
-  amount: number;
-  category: string;
-  tx_timestamp: string;
-}
-
-export interface TransactionRow {
-  transaction_id: number | null;
-  item: string;
-  amount: number;
-  amount_display: string;
-  category: string;
-  tx_timestamp: string;
-  wallet: string;
-}
-
-export interface AnalyticsResponse {
-  kpi: KpiSnapshot;
-  categories: CategoryRow[];
-  trend: TrendPoint[];
-  trend_peak: number;
-  budgets: BudgetStatusRow[];
-  budget_used_pct: number;
-  budget_limit_total: number;
-  budget_spent_total: number;
-  recent: RecentTx[];
-  top_category: string;
-  top_category_amount: number;
-  month_label: string;
-  available_months: string[];
-  unavailable: boolean;
-}

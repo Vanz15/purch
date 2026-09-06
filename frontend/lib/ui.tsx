@@ -13,23 +13,23 @@ export const eyebrow =
   "text-[11px] uppercase tracking-[0.1em] text-[color:var(--purch-taupe)]";
 
 export const displayHeading =
-  "font-['Fraunces'] font-semibold tracking-tight text-[color:var(--purch-ink)]";
+  "font-sans font-extrabold tracking-tight text-[color:var(--purch-ink)]";
 
 export const primaryButton =
-  "inline-flex items-center justify-center gap-2 rounded-lg " +
-  "bg-[color:var(--purch-rust)] hover:opacity-90 " +
-  "text-[color:var(--purch-paper)] font-semibold px-4 py-2.5 transition-opacity";
+  "inline-flex items-center justify-center gap-2 rounded-full " +
+  "bg-[color:var(--purch-accent)] hover:opacity-90 " +
+  "text-white font-medium px-5 py-2.5 transition-opacity";
 
 export const outlineButton =
-  "inline-flex items-center justify-center gap-2 rounded-lg " +
-  "border border-[color:var(--purch-line-soft)] bg-[color:var(--purch-paper)] " +
-  "text-[color:var(--purch-ink)] hover:border-[color:var(--purch-rust)] " +
-  "transition-colors font-medium px-4 py-2";
+  "inline-flex items-center justify-center gap-2 rounded-full " +
+  "border border-[color:var(--purch-line)] bg-white " +
+  "text-[color:var(--purch-ink)] hover:border-[color:var(--purch-accent)] " +
+  "transition-colors font-medium px-5 py-2.5";
 
 export const ghostButton =
-  "inline-flex items-center justify-center gap-2 rounded-lg " +
-  "text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] " +
-  "transition-colors font-medium px-3 py-2";
+  "inline-flex items-center justify-center gap-2 rounded-full " +
+  "text-[color:var(--purch-muted-ink)] hover:text-[color:var(--purch-accent)] " +
+  "transition-colors font-medium px-4 py-2.5";
 
 export const TONES = [
   "Nonchalant",
@@ -42,12 +42,13 @@ export const TONES = [
 
 // Redesign palette (kept in sync with globals.css :root).
 export const C = {
-  ink: "#1C1410",
-  paper: "#FAF3E7",
-  rust: "#C24E2B",
-  pine: "#2F6E5C",
-  gold: "#E8B33D",
-  taupe: "#8B7355",
+  ink: "#1D1D1F",
+  paper: "#EAEAEA",
+  rust: "#0A84FF",   // NOTE: keeping the key name "rust" to avoid renaming every call site;
+                      // the VALUE is now the new accent blue.
+  pine: "#2FA88A",
+  gold: "#FFB020",
+  taupe: "#86868B",
 };
 
 export function Brand({
@@ -65,16 +66,17 @@ export function Brand({
     <div className="flex items-center gap-2">
       {mark && (
         <span
-          className="flex h-7 w-7 items-center justify-center rounded-lg font-['Fraunces'] font-bold text-[15px]"
+          className="flex h-7 w-7 items-center justify-center rounded-lg font-sans font-bold text-[15px]"
           style={{ background: C.ink, color: C.gold }}
         >
           P
         </span>
       )}
       <span
-        className={`${sizeCls} font-['Fraunces'] font-semibold tracking-tight text-[color:var(--purch-ink)]`}
+        className={`${sizeCls} font-semibold`}
+        style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 600, fontStyle: "italic", letterSpacing: "-0.02em", color: "#171717" }}
       >
-        Purch
+        purch
       </span>
       {showBeta && (
         <span className="purch-beta-badge" style={{ background: C.pine }}>
@@ -89,16 +91,16 @@ export function ToneChip({ tone }: { tone: string }) {
   return (
     <span
       className="inline-flex items-center rounded-[20px] border px-3 py-1.5 text-xs"
-      style={{ borderColor: C.taupe, color: "#D8CFC2" }}
+      style={{ borderColor: C.taupe, color: "var(--purch-muted-ink)" }}
     >
       {tone}
     </span>
   );
 }
 
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { guestName, isGuest } from "@/lib/guest";
+import { guestName, guestDetail, isGuest, clearGuest } from "@/lib/guest";
 
 const NAV = [
   { href: "/chat", label: "Chat", icon: MessageCircle },
@@ -119,7 +121,7 @@ export function MobileNav({ active }: { active?: string }) {
             className={
               "flex-1 flex flex-col items-center gap-0.5 py-2 text-[0.65rem] font-medium rounded-md mx-1 my-1 transition-colors " +
               (isActive
-                ? "bg-[#CDBFA6] text-[color:var(--purch-ink)]"
+                ? "bg-[#D4E8FF] text-[color:var(--purch-ink)]"
                 : "text-[color:var(--purch-taupe)]")
             }
           >
@@ -142,10 +144,26 @@ export function PageShell({
   sidebar?: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [identity, setIdentity] = useState<{ label: string; isGuest: boolean }>({
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [identity, setIdentity] = useState<{ label: string; isGuest: boolean; email: string; detail: string }>({
     label: "",
     isGuest: false,
+    email: "",
+    detail: "",
   });
+  const initial = identity.label ? identity.label.charAt(0).toUpperCase() : "G";
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
 
   // On small screens the sidebar is a slide-in drawer (closed by default);
   // on desktop it's a persistent left column (open by default).
@@ -165,87 +183,49 @@ export function PageShell({
           (u.user_metadata?.name as string | undefined) ||
           u.email ||
           "Account";
-        setIdentity({ label: name, isGuest: false });
+        setIdentity({ label: name, isGuest: false, email: u.email || "", detail: u.email || name });
       } else if (isGuest()) {
-        setIdentity({ label: guestName(), isGuest: true });
+        setIdentity({ label: guestName(), isGuest: true, email: "", detail: guestDetail() });
       } else {
-        setIdentity({ label: "Guest", isGuest: true });
+        setIdentity({ label: "Guest", isGuest: true, email: "", detail: "Guest" });
       }
     });
   }, []);
 
-  return (
-    <div className="flex min-h-screen bg-[color:var(--purch-bg)]">
-      {sidebar && (
-        <>
-          {/* Backdrop: click to close (mobile drawer). Hidden on desktop where
-              the column collapses via the toggle button instead. */}
-          <div
-            className={`lg:hidden fixed inset-0 z-40 bg-black/40 transition-opacity ${
-              sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
-            onClick={() => setSidebarOpen(false)}
-          />
-          {/* Sidebar: full-height sticky column on lg+ (collapses via width),
-              slide-in drawer on mobile. Kept MOUNTED so toggling never resets data. */}
-          <div
-            className={`fixed inset-y-0 left-0 z-50 w-[300px] max-w-[85%] overflow-y-auto
-              bg-[color:var(--purch-bg)] transition-[transform,width] duration-200 ease-out
-              lg:static lg:inset-auto lg:z-auto lg:h-screen lg:sticky lg:top-0 lg:overflow-y-auto
-              ${
-                sidebarOpen
-                  ? "translate-x-0 lg:w-[300px] lg:shrink-0"
-                  : "-translate-x-full lg:translate-x-0 lg:w-0 lg:shrink-0 lg:overflow-hidden"
-              }`}
-          >
-            {sidebar}
-          </div>
-        </>
-      )}
-      <main className="flex-1 min-w-0 pb-20 sm:pb-0 flex flex-col">
-        <TopBar
-          active={active}
-          identity={identity}
-          showToggle={!!sidebar}
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen((o) => !o)}
-        />
-        <div className="flex-1 px-4 py-6 sm:px-8 sm:py-8">{children}</div>
-      </main>
-      <MobileNav active={active} />
-    </div>
-  );
-}
+  function signOut() {
+    const supabase = createClient();
+    supabase.auth.signOut().finally(() => {
+      clearGuest();
+      window.location.href = "/";
+    });
+  }
 
-function TopBar({
-  active,
-  identity,
-  showToggle,
-  sidebarOpen,
-  onToggleSidebar,
-}: {
-  active?: string;
-  identity: { label: string; isGuest: boolean };
-  showToggle: boolean;
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
-}) {
   return (
-    <header className="flex items-center justify-between border-b border-[color:var(--purch-line)] bg-[color:var(--purch-paper)] px-7 py-3.5">
-      <div className="flex items-center gap-3">
-        {showToggle && (
-          <button
-            onClick={onToggleSidebar}
-            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            className="flex items-center justify-center h-8 w-8 rounded-md text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-rust)] hover:bg-[color:var(--purch-bg)] transition-colors"
-          >
-            {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-          </button>
-        )}
-        <Link href="/chat" aria-label="Go to Chat" className="flex items-center gap-3">
-          <Brand size="sm" mark showBeta={false} />
-        </Link>
-        <nav className="hidden md:flex items-center gap-1 ml-3">
+    <div className="min-h-screen bg-[color:var(--purch-bg)]">
+      {/* Dark floating pill navbar */}
+      <header
+        style={{
+          position: "fixed", top: 12, left: 0, right: 0, zIndex: 30,
+          display: "flex", justifyContent: "center",
+          padding: "0 12px",
+        }}
+      >
+        <nav style={{
+          display: "flex", alignItems: "center", gap: 4,
+          background: "#1a1a2e", borderRadius: 9999,
+          padding: "6px 6px 6px 12px",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.2)",
+          flexShrink: 1,
+        }}>
+          {/* Logo */}
+          <Link href="/chat" aria-label="Go to Chat" style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none", marginRight: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a2e", fontFamily: "'Playfair Display', Georgia, serif" }}>P</span>
+            </div>
+          </Link>
+
+          {/* Nav links — icons only on small screens, icons+text on sm+ */}
+          <div className="flex items-center gap-1">
           {NAV.map((n) => {
             const isActive = active === n.href;
             const Icon = n.icon;
@@ -253,36 +233,74 @@ function TopBar({
               <Link
                 key={n.href}
                 href={n.href}
-                className={
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13.5px] transition-colors " +
-                  (isActive
-                    ? "bg-[#CDBFA6] font-semibold text-[color:var(--purch-ink)]"
-                    : "text-[color:var(--purch-taupe)] hover:text-[color:var(--purch-ink)] hover:bg-[color:var(--purch-bg)]")
-                }
+                style={{
+                  fontSize: 13, fontWeight: 500,
+                  color: isActive ? "#fff" : "rgba(255,255,255,0.7)",
+                  padding: "5px 10px", borderRadius: 9999,
+                  letterSpacing: "-0.023em", textDecoration: "none",
+                  background: isActive ? "rgba(255,255,255,0.12)" : "transparent",
+                  transition: "all 0.15s",
+                  display: "flex", alignItems: "center", gap: 5,
+                }}
               >
                 <Icon size={15} />
-                {n.label}
+                <span className="hidden sm:inline">{n.label}</span>
               </Link>
             );
           })}
+          </div>
+
+          {/* Profile button */}
+          <div ref={menuRef} style={{ position: "relative" }}>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: "#7C6EDC",
+                color: "#fff", padding: "6px 12px 6px 6px",
+                borderRadius: 9999, border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 500, letterSpacing: "-0.023em",
+                transition: "opacity 0.15s",
+              }}
+            >
+              <div style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+                {initial}
+              </div>
+              <span className="hidden sm:inline" style={{ maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{identity.label}</span>
+            </button>
+
+            {menuOpen && (
+              <div style={{
+                position: "absolute", top: "100%", right: 0, marginTop: 8,
+                background: "#fff", borderRadius: 12, padding: "6px 0",
+                boxShadow: "rgba(0,0,0,0.06) 0px 1px 3px 0px, rgba(0,0,0,0.06) 0px 8px 16px 0px",
+                border: "1px solid #e8e8e8", minWidth: 160, zIndex: 50,
+              }}>
+                <div style={{ padding: "8px 16px", borderBottom: "1px solid #e8e8e8" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#181925" }}>{identity.label}</div>
+                  {identity.detail && <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{identity.detail}</div>}
+                </div>
+                <button
+                  onClick={signOut}
+                  style={{
+                    display: "block", width: "100%", textAlign: "left", padding: "8px 16px",
+                    fontSize: 13, color: "#666", background: "none", border: "none", cursor: "pointer",
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </nav>
-      </div>
-      <div className="flex items-center gap-2.5">
-        {identity.label && (
-          <span className="text-[13px] text-[color:var(--purch-ink)] max-w-[180px] truncate">
-            {identity.label}
-          </span>
-        )}
-        <div
-          className="flex h-7 w-7 items-center justify-center rounded-full font-['Fraunces'] font-bold text-[12px]"
-          style={{ background: C.ink, color: C.gold }}
-        >
-          P
-        </div>
-      </div>
-    </header>
+      </header>
+
+      <main className="pt-24 px-4 pb-6 sm:px-8 sm:py-8">{children}</main>
+      {/* MobileNav removed — using floating pill navbar instead */}
+    </div>
   );
 }
+
 
 // --------------------------------------------------------------------------- //
 // Global toast notification — a SINGLE live alert that slides in from the
@@ -337,7 +355,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 toast.kind === "danger"
                   ? "var(--purch-rust)"
                   : toast.kind === "warning"
-                  ? "#E8B33D"
+                  ? "var(--purch-gold)"
                   : toast.kind === "success"
                   ? "var(--purch-pine)"
                   : "var(--purch-ink)",

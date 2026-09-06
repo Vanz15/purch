@@ -7,8 +7,6 @@ import { api, WalletRow, BudgetStatusRow, AnalyticsResponse } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import { isGuest, guestName, clearGuest } from "@/lib/guest";
 
-const TONE_OPTIONS = ["neutral", "bestie", "sarcastic"];
-
 // Same Debit/Lent/Borrowed grouping the wallets page uses, so "spendable"
 // stays consistent and Lent/Borrowed/Debt never appear there.
 function groupOf(wt: string): "Debit" | "Lent" | "Borrowed" {
@@ -25,7 +23,6 @@ export function ChatSidebar() {
   const [budgets, setBudgets] = useState<BudgetStatusRow[]>([]);
   const [wallets, setWallets] = useState<WalletRow[]>([]);
   const [spendable, setSpendable] = useState<WalletRow[]>([]);
-  const [tone, setTone] = useState("neutral");
   const [guestLabel, setGuestLabel] = useState("Guest");
   const [loading, setLoading] = useState(false);
 
@@ -45,12 +42,6 @@ export function ChatSidebar() {
         (x: WalletRow) => !x.is_archived && groupOf(x.wallet_type) === "Debit"
       );
       setSpendable(spendable);
-      try {
-        const t = await api.tone.get();
-        if (t?.tone) setTone(t.tone);
-      } catch {
-        /* tone optional */
-      }
     } catch {
       /* keep defaults */
     } finally {
@@ -79,15 +70,6 @@ export function ChatSidebar() {
     return () => window.removeEventListener("purch:refresh-sidebar", onRefresh);
   }, []);
 
-  async function changeTone(t: string) {
-    setTone(t);
-    try {
-      await api.tone.set(t);
-    } catch {
-      /* ignore */
-    }
-  }
-
   function signOut() {
     const supabase = createClient();
     supabase.auth.signOut().finally(() => {
@@ -104,7 +86,7 @@ export function ChatSidebar() {
       {/* Section title, aligned with the navbar's left edge */}
       <div className="flex items-center gap-2 mb-1 lg:mb-2">
         <span className="h-4 w-1 rounded-full" style={{ background: "var(--purch-rust)" }} />
-        <div className="font-['Fraunces'] font-semibold text-[20px] tracking-tight text-[color:var(--purch-ink)]">
+        <div className="font-sans font-semibold text-[20px] tracking-tight text-[color:var(--purch-ink)]">
           Insights
         </div>
       </div>
@@ -138,13 +120,13 @@ export function ChatSidebar() {
               {spent.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
           </div>
-          <div className="flex items-center justify-between mt-2.5 text-[10px]" style={{ color: "#B8AC9C" }}>
-            <span className="font-['JetBrains_Mono]">{spentPct.toFixed(0)}%</span>
-            <span className="font-['JetBrains_Mono]">
+          <div className="flex items-center justify-between mt-2.5 text-[10px]" style={{ color: "var(--purch-muted-ink)" }}>
+            <span className="font-['JetBrains_Mono']">{spentPct.toFixed(0)}%</span>
+            <span className="font-['JetBrains_Mono']">
               of ₱{budgetTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
           </div>
-          <div className="h-2.5 rounded-full mt-2" style={{ background: "#3A2E26" }}>
+          <div className="h-2.5 rounded-full mt-2" style={{ background: "#2C2C2E" }}>
             <div
               className="h-full rounded-full transition-all"
               style={{
@@ -171,7 +153,7 @@ export function ChatSidebar() {
               <div key={i}>
                 <div className="flex justify-between text-[12px] mb-1">
                   <span className="font-semibold">{b.category}</span>
-                  <span className="font-['JetBrains_Mono] text-[color:var(--purch-rust)]">
+                  <span className="font-['JetBrains_Mono'] text-[color:var(--purch-rust)]">
                     ₱{b.spent.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     <span className="text-[color:var(--purch-taupe)]">
                       /{b.limit_amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -237,30 +219,11 @@ export function ChatSidebar() {
         )}
       </div>
 
-      {/* Tone */}
-      <div className="rounded-xl border p-2.5" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
-        <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--purch-taupe)] mb-1.5">
-          Tone
-        </div>
-        <select
-          value={tone}
-          onChange={(e) => changeTone(e.target.value)}
-          className="w-full rounded-md px-3 py-1.5 text-[12.5px]"
-          style={{ background: "var(--purch-bg)", color: "var(--purch-ink)", border: "1px solid var(--purch-line-soft)" }}
-        >
-          {TONE_OPTIONS.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {/* Profile + sign out */}
       <div className="rounded-xl border p-3 flex items-center justify-between" style={{ background: "var(--purch-paper)", borderColor: "var(--purch-line)" }}>
         <div className="flex items-center gap-2.5">
           <div
-            className="flex h-7 w-7 items-center justify-center rounded-full font-['Fraunces'] font-bold text-[12px]"
+            className="flex h-7 w-7 items-center justify-center rounded-full font-sans font-bold text-[12px]"
             style={{ background: "var(--purch-gold)", color: "var(--purch-ink)" }}
           >
             P

@@ -24,6 +24,7 @@ class WalletCreate(BaseModel):
     wallet_type: str = "Other"
     balance: str = "0"  # kept as string to mirror the old form_data path
     note: str = ""
+    color: str = ""
 
 
 class WalletUpdate(BaseModel):
@@ -31,6 +32,7 @@ class WalletUpdate(BaseModel):
     wallet_type: str = "Other"
     balance: str = "0"
     note: str = ""
+    color: str = ""
 
 
 def _parse_balance(raw: str) -> float:
@@ -59,6 +61,7 @@ def _build_rows(user_id: str, include_archived: bool):
             "note": str(raw.get("note") or ""),
             "is_archived": bool(raw["is_archived"]),
             "accent": wallet_backend.TYPE_ACCENT.get(raw["wallet_type"], "muted"),
+            "color": str(raw.get("color") or ""),
             "pct": pct,
             "group": wallet_backend.group_for(raw["wallet_type"]),
         }
@@ -143,7 +146,7 @@ async def create_wallet(body: WalletCreate, user_id: str = Depends(get_current_u
     if balance < 0:
         raise HTTPException(status_code=422, detail="Balance can't be negative — use a Debt wallet.")
     try:
-        wallet_backend.create_wallet(user_id, body.name.strip(), wallet_type, balance, body.note)
+        wallet_backend.create_wallet(user_id, body.name.strip(), wallet_type, balance, body.note, body.color)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     return {"ok": True}
@@ -160,7 +163,7 @@ async def update_wallet(wallet_id: int, body: WalletUpdate, user_id: str = Depen
     if balance < 0:
         raise HTTPException(status_code=422, detail="Balance can't be negative — use a Debt wallet.")
     try:
-        wallet_backend.update_wallet(user_id, wallet_id, body.name.strip(), wallet_type, balance, body.note)
+        wallet_backend.update_wallet(user_id, wallet_id, body.name.strip(), wallet_type, balance, body.note, body.color)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     return {"ok": True}

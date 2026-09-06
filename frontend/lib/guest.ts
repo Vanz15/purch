@@ -27,8 +27,14 @@ export function isGuest(): boolean {
 
 export function guestName(): string {
   const id = localStorage.getItem(LS_GUEST_ID) || "";
-  // Show a friendly short label, e.g. "Guest a1b2c3"
-  return `Guest ${id.replace("guest-", "").slice(0, 6)}`;
+  // e.g. "Guest040d"
+  return `Guest${id.replace("guest-", "").slice(0, 4)}`;
+}
+
+export function guestDetail(): string {
+  const id = localStorage.getItem(LS_GUEST_ID) || "";
+  // e.g. "Guest040dea"
+  return `Guest${id.replace("guest-", "").slice(0, 7)}`;
 }
 
 export function ensureGuest(): string {
@@ -38,7 +44,11 @@ export function ensureGuest(): string {
 export async function getGuestToken(): Promise<string | null> {
   if (cachedToken) return cachedToken;
   const id = guestId();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+  // Dynamic API URL — always derive from browser origin in dev to avoid stale IPs
+  let API_URL = "";
+  if (typeof window !== "undefined") {
+    API_URL = window.location.origin.replace(":3000", ":8000");
+  }
   try {
     const res = await fetch(`${API_URL}/api/guest-token`, {
       method: "POST",

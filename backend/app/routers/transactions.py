@@ -11,8 +11,17 @@ from sqlalchemy import text
 from app.deps import get_current_user_id
 from app.services import bootstrap as backend
 from app.services.db_backend import get_engine
+from app.routers.analytics import _cache, _cache_times
 
 logger = logging.getLogger("purch.transactions")
+
+
+def _invalidate_analytics_cache(user_id: str):
+    """Clear analytics cache entries for a user after a DB write."""
+    stale_keys = [k for k in _cache if k[0] == user_id]
+    for k in stale_keys:
+        _cache.pop(k, None)
+        _cache_times.pop(k, None)
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -124,6 +133,7 @@ async def update_transaction(
             amount=body.amount,
             category=body.category,
         )
+        _invalidate_analytics_cache(user_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # pragma: no cover - defensive
@@ -141,6 +151,7 @@ async def delete_transaction(
         raise HTTPException(status_code=503, detail="Transaction storage is unavailable right now.")
     try:
         backend.delete_transaction(tx_id=transaction_id)
+        _invalidate_analytics_cache(user_id)
     except Exception as e:  # pragma: no cover - defensive
         logger.exception(f"transaction delete failed: {e}")
         raise HTTPException(status_code=500, detail="Could not delete transaction.")

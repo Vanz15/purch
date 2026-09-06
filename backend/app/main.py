@@ -42,7 +42,11 @@ ALLOWED_ORIGINS = [
 ]
 # Dev convenience: allow localhost previews when no origin is configured.
 if not ALLOWED_ORIGINS:
-    ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://192.168.100.32:3000",
+    ]
 
 
 @asynccontextmanager

@@ -15,8 +15,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-[color:var(--purch-parchment)] text-[color:var(--purch-ink)]">
-        <ToastProvider>{children}</ToastProvider>
+      <body className="min-h-full flex flex-col" style={{ background: '#F5F5F7', padding: '12px' }}>
+        <ToastProvider>
+          <div className="rounded-[20px] md:rounded-[28px] overflow-hidden shadow-lg" style={{ background: 'var(--purch-bg)' }}>
+            {children}
+          </div>
+        </ToastProvider>
       </body>
     </html>
   );
