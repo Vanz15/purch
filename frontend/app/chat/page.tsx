@@ -257,26 +257,26 @@ export default function ChatPage() {
       };
       setMessages((m) => [...m, userMsg]);
       try {
-        const res: ChatResponse = await api.chat.send({
+        const res = await api.chat.send({
           message: value,
           pending_wallet: pendingWallet,
           wallet_choices: walletChoices,
           awaiting_wallet: awaitingWallet,
           require_wallet: hasDebitWallets,
-        });
+        }) as ChatResponse;
         setMessages((m) => [
           ...m,
           {
             role: "assistant",
-            text: res.response,
+            text: res.response || "",
             meta: res.meta,
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             alert: res.alert as any,
           },
         ]);
         setPendingWallet(res.pending_wallet);
-        setWalletChoices(res.wallet_choices);
-        setAwaitingWallet(res.awaiting_wallet);
+        setWalletChoices(res.wallet_choices || []);
+        setAwaitingWallet(res.awaiting_wallet || false);
         window.dispatchEvent(new Event("purch:refresh-sidebar")); // refresh sidebar live
       } catch (e: any) {
         if (e.message === "AUTH_REQUIRED") {
@@ -295,15 +295,15 @@ export default function ChatPage() {
     if (!pendingWallet) return;
     setBusy(true);
     try {
-      const res: ChatResponse = await api.chat.chooseWallet({
+      const res = await api.chat.chooseWallet({
         wallet_id: id,
         pending_wallet: pendingWallet,
-      });
+      }) as ChatResponse;
       setMessages((m) => [
         ...m,
         {
           role: "assistant",
-          text: res.response,
+          text: res.response || "",
           meta: "",
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           alert: res.alert as any,

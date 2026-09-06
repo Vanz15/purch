@@ -109,6 +109,7 @@ export interface ChatResponse {
   action?: string;
   wallet_choices?: WalletRow[];
   awaiting_wallet?: boolean;
+  require_wallet?: boolean;
   pending_wallet?: any;
   pending_conversion?: any;
   pending_edit?: any;
@@ -145,6 +146,7 @@ export interface TransactionRow {
   transaction_id: number;
   item: string;
   amount: number;
+  amount_display?: string;
   category: string;
   wallet?: string;
   tx_timestamp: string;
