@@ -90,21 +90,25 @@ export interface WalletCreate {
 }
 
 export interface ChatMessage {
-  role: "user" | "purch";
+  role: "user" | "purch" | "assistant";
   text: string;
   meta?: string;
   is_error?: boolean;
+  time?: string;
+  alert?: any;
   transaction?: { transaction_id: number; amount: number; item: string };
 }
 
 export interface ChatResponse {
-  response: string;
+  response?: string;
+  message?: string;
   meta?: string;
   is_error?: boolean;
   transaction?: { transaction_id: number; amount: number; item: string };
   tones?: string[];
   action?: string;
   wallet_choices?: WalletRow[];
+  awaiting_wallet?: boolean;
   pending_wallet?: any;
   pending_conversion?: any;
   pending_edit?: any;
@@ -126,6 +130,24 @@ export interface AnalyticsResponse {
   month_label: string;
   available_months: string[];
   unavailable?: boolean;
+}
+
+export interface BudgetStatusRow {
+  category: string;
+  limit_amount: number;
+  spent: number;
+  pct: number;
+  remaining: number;
+  status: string;
+}
+
+export interface TransactionRow {
+  transaction_id: number;
+  item: string;
+  amount: number;
+  category: string;
+  wallet?: string;
+  tx_timestamp: string;
 }
 
 export interface ToneResponse {
