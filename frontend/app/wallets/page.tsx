@@ -291,7 +291,7 @@ export default function WalletsPage() {
           <button onClick={load} disabled={loading} className={`${outlineButton} text-[13px] disabled:opacity-60`}>
             <RefreshCw size={14} /> Refresh
           </button>
-          <button onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "", color: "" }); setWantFavorite(false); setFormOpen(true); }} className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-medium transition-opacity hover:opacity-90" style={{ background: "#C4B5FD", color: "#fff" }}>
+          <button onClick={() => { setEditingId(null); setForm({ name: "", wallet_type: "Cash", balance: "", note: "", color: "" }); setWantFavorite(false); setFormOpen(true); }} className="purch-btn-primary inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-medium">
             <Plus size={14} /> New wallet
           </button>
         </div>
@@ -381,7 +381,7 @@ export default function WalletsPage() {
             <label className="flex flex-col gap-1">
               <span className={eyebrow}>Color</span>
               <div className="flex flex-wrap gap-2 items-center">
-                {["#B8860B", "#0D1B4C", "#7A1F2B", "#2F4F3F", "#4A2C5E", "#1F5C5C", "#5C3A1E", "#3E3E3E", "#1E4620", "#6B2F5F"].map((c) => (
+                {["#F4C542", "#7EB8E5", "#E88D9A", "#8FD5C5", "#C4A8E0", "#7ECFC4", "#D4A574", "#A8A8A8", "#8FD1A8", "#D6A0D6"].map((c) => (
                   <button
                     key={c}
                     type="button"
@@ -531,7 +531,7 @@ export default function WalletsPage() {
                     <label className="flex flex-col gap-1">
                       <span className={eyebrow}>Color</span>
                       <div className="flex flex-wrap gap-1.5 items-center">
-                        {["#B8860B", "#0D1B4C", "#7A1F2B", "#2F4F3F", "#4A2C5E", "#1F5C5C", "#5C3A1E", "#3E3E3E", "#1E4620", "#6B2F5F"].map((c) => (
+                        {["#F4C542", "#7EB8E5", "#E88D9A", "#8FD5C5", "#C4A8E0", "#7ECFC4", "#D4A574", "#A8A8A8", "#8FD1A8", "#D6A0D6"].map((c) => (
                           <button
                             key={c}
                             type="button"

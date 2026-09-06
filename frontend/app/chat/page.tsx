@@ -424,7 +424,7 @@ export default function ChatPage() {
                 {/* Gradient orb avatar */}
                 <div
                   className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-                  style={{ background: "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.9) 0%, transparent 25%), radial-gradient(circle at 35% 30%, #F5F3FF 0%, #C4B5FD 45%, #A78BFA 100%)", boxShadow: "0 0 60px 20px rgba(167, 139, 250, 0.35)" }}
+                  style={{ background: "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.4) 0%, transparent 25%), radial-gradient(circle at 35% 30%, #5B21B6 0%, #3E0F8D 45%, #2D0A6E 100%)", }}
                 >
                   <span className="text-[28px] font-sans font-bold text-white leading-none">P</span>
                 </div>
@@ -468,7 +468,7 @@ export default function ChatPage() {
                     <div key={i} className="flex items-start gap-2.5 py-2.5">
                       <div
                         className="mt-0.5 w-7 h-7 shrink-0 rounded-full flex items-center justify-center"
-                        style={{ background: "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.9) 0%, transparent 25%), radial-gradient(circle at 35% 30%, #F5F3FF 0%, #C4B5FD 45%, #A78BFA 100%)", boxShadow: "0 0 60px 20px rgba(167, 139, 250, 0.35)" }}
+                        style={{ background: "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.4) 0%, transparent 25%), radial-gradient(circle at 35% 30%, #5B21B6 0%, #3E0F8D 45%, #2D0A6E 100%)", }}
                       >
                         <span className="font-sans font-bold text-[11px] text-white">P</span>
                       </div>
@@ -499,7 +499,7 @@ export default function ChatPage() {
                   <div className="flex items-start gap-2.5 py-2.5">
                     <div
                       className="mt-0.5 w-7 h-7 shrink-0 rounded-full flex items-center justify-center"
-                      style={{ background: "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.9) 0%, transparent 25%), radial-gradient(circle at 35% 30%, #F5F3FF 0%, #C4B5FD 45%, #A78BFA 100%)", boxShadow: "0 0 60px 20px rgba(167, 139, 250, 0.35)" }}
+                      style={{ background: "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.4) 0%, transparent 25%), radial-gradient(circle at 35% 30%, #5B21B6 0%, #3E0F8D 45%, #2D0A6E 100%)", }}
                     >
                       <span className="font-sans font-bold text-[11px] text-white">P</span>
                     </div>

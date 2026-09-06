@@ -150,7 +150,7 @@ function Navbar() {
         {/* Logo */}
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none", marginRight: 8 }}>
           <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a2e", fontFamily: "'Playfair Display', Georgia, serif" }}>P</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#7C6EDC", fontFamily: "'Playfair Display', Georgia, serif" }}>P</span>
           </div>
         </Link>
 
@@ -164,12 +164,12 @@ function Navbar() {
         </div>
 
         {/* Login — visible on mobile */}
-        <Link href="/auth/login" className="inline-flex" style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.7)", padding: "6px 12px", borderRadius: 9999, letterSpacing: "-0.023em", textDecoration: "none", transition: "color 0.15s" }}>
+        <Link href="/auth/login" className="inline-flex purch-btn-ghost" style={{ fontSize: 13, fontWeight: 500, padding: "6px 12px", borderRadius: 9999, letterSpacing: "-0.023em", textDecoration: "none" }}>
           Login
         </Link>
 
         {/* Register button */}
-        <Link href="/auth/register" style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: "#7C6EDC", padding: "8px 20px", borderRadius: 9999, letterSpacing: "-0.023em", textDecoration: "none", marginLeft: 4, transition: "opacity 0.15s" }}>
+        <Link href="/auth/register" className="purch-btn-primary" style={{ fontSize: 13, fontWeight: 600, padding: "8px 20px", borderRadius: 9999, letterSpacing: "-0.023em", textDecoration: "none", marginLeft: 4 }}>
           Register
         </Link>
       </nav>

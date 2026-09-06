@@ -220,7 +220,7 @@ export function PageShell({
           {/* Logo */}
           <Link href="/chat" aria-label="Go to Chat" style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none", marginRight: 8 }}>
             <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a2e", fontFamily: "'Playfair Display', Georgia, serif" }}>P</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#7C6EDC", fontFamily: "'Playfair Display', Georgia, serif" }}>P</span>
             </div>
           </Link>
 
@@ -254,10 +254,10 @@ export function PageShell({
           <div ref={menuRef} style={{ position: "relative" }}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
+              className="purch-btn-primary"
               style={{
                 display: "flex", alignItems: "center", gap: 8,
-                background: "#7C6EDC",
-                color: "#fff", padding: "6px 12px 6px 6px",
+                padding: "6px 12px 6px 6px",
                 borderRadius: 9999, border: "none", cursor: "pointer",
                 fontSize: 13, fontWeight: 500, letterSpacing: "-0.023em",
                 transition: "opacity 0.15s",
