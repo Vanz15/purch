@@ -1,301 +1,260 @@
-import sqlite3
-from db.connection import get_connection
+"""Database models — PostgreSQL-compatible (uses get_engine + text)."""
+
+from sqlalchemy import text
 
 
-def insert_transaction(user_id: str, raw_text: str, item: str, amount: float, category: str, tx_date: str = None) -> int:
+def _get_engine():
+    from app.services.db_backend import get_engine
+    return get_engine()
+
+
+# ── Budgets ───────────────────────────────────────────────────────────
+
+def set_budget(user_id: str, category: str, limit_amount: float, period: str = "monthly"):
+    if limit_amount <= 0:
+        raise ValueError("limit_amount must be positive")
+    engine = _get_engine()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO budgets (user_id, category, limit_amount, period) "
+                "VALUES (:uid, :cat, :limit, :period) "
+                "ON CONFLICT (user_id, category, period) DO UPDATE SET limit_amount = EXCLUDED.limit_amount"
+            ),
+            {"uid": user_id, "cat": category, "limit": limit_amount, "period": period},
+        )
+
+
+def zero_budget(user_id: str, category: str, period: str = "monthly"):
+    """Sets a budget's limit to 0 while keeping the row."""
+    engine = _get_engine()
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "INSERT INTO budgets (user_id, category, limit_amount, period) "
+                "VALUES (:uid, :cat, 0, :period) "
+                "ON CONFLICT (user_id, category, period) DO UPDATE SET limit_amount = 0 RETURNING id"
+            ),
+            {"uid": user_id, "cat": category, "period": period},
+        )
+        return result.scalar()
+
+
+def delete_budget(user_id: str, category: str, period: str = "monthly") -> bool:
+    """Deletes a budget row. Returns True if a row was actually deleted."""
+    engine = _get_engine()
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "DELETE FROM budgets WHERE user_id = :uid AND category = :cat AND period = :period"
+            ),
+            {"uid": user_id, "cat": category, "period": period},
+        )
+        return result.rowcount > 0
+
+
+def get_budget(user_id: str, category: str, period: str = "monthly"):
+    """Returns the budget limit_amount, or None if not set."""
+    engine = _get_engine()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "SELECT limit_amount FROM budgets WHERE user_id = :uid AND category = :cat AND period = :period"
+            ),
+            {"uid": user_id, "cat": category, "period": period},
+        ).fetchone()
+        return row[0] if row else None
+
+
+def get_user_categories(user_id: str) -> list[str]:
+    """Distinct categories this user actually uses, from budgets and transactions."""
+    engine = _get_engine()
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT category FROM budgets WHERE user_id = :uid "
+                "UNION "
+                "SELECT category FROM transactions WHERE user_id = :uid"
+            ),
+            {"uid": user_id},
+        ).fetchall()
+        return [row[0] for row in rows if row[0]]
+
+
+# ── Transactions ──────────────────────────────────────────────────────
+
+def insert_transaction(user_id: str, raw_text: str, item: str, amount: float,
+                       category: str, tx_date: str = None, wallet: str = None) -> int:
     if amount <= 0:
         raise ValueError(f"amount must be positive, got {amount}")
     if not item or not category:
         raise ValueError("item and category cannot be empty")
 
-    conn = get_connection()
-    try:
+    engine = _get_engine()
+    with engine.begin() as conn:
         if tx_date:
-            cur = conn.execute(
-                """
-                INSERT INTO transactions (user_id, raw_text, item, amount, category, tx_timestamp)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (user_id, raw_text, item, amount, category, f"{tx_date} 12:00:00"),
+            result = conn.execute(
+                text(
+                    "INSERT INTO transactions (user_id, raw_text, item, amount, category, wallet, tx_timestamp) "
+                    "VALUES (:uid, :raw, :item, :amount, :cat, :wallet, :ts) RETURNING id"
+                ),
+                {"uid": user_id, "raw": raw_text, "item": item, "amount": amount,
+                 "cat": category, "wallet": wallet or "", "ts": f"{tx_date} 12:00:00"},
             )
         else:
-            cur = conn.execute(
-                """
-                INSERT INTO transactions (user_id, raw_text, item, amount, category)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (user_id, raw_text, item, amount, category),
+            result = conn.execute(
+                text(
+                    "INSERT INTO transactions (user_id, raw_text, item, amount, category, wallet) "
+                    "VALUES (:uid, :raw, :item, :amount, :cat, :wallet) RETURNING id"
+                ),
+                {"uid": user_id, "raw": raw_text, "item": item, "amount": amount,
+                 "cat": category, "wallet": wallet or ""},
             )
-        conn.commit()
-        return cur.lastrowid
-    except sqlite3.Error as e:
-        conn.rollback()
-        raise RuntimeError(f"Failed to insert transaction: {e}") from e
-    finally:
-        conn.close()
+        return result.scalar()
+
 
 def get_recent_transactions(user_id: str, limit: int = 10):
-    """Returns the most recent transactions for a user, newest first."""
-    conn = get_connection()
-    try:
+    """Returns the most recent transactions, newest first."""
+    engine = _get_engine()
+    with engine.begin() as conn:
         rows = conn.execute(
-            """
-            SELECT id, item, amount, category, tx_timestamp
-            FROM transactions
-            WHERE user_id = ?
-            ORDER BY tx_timestamp DESC
-            LIMIT ?
-            """,
-            (user_id, limit),
+            text(
+                "SELECT id, item, amount, category, tx_timestamp "
+                "FROM transactions WHERE user_id = :uid "
+                "ORDER BY tx_timestamp DESC LIMIT :limit"
+            ),
+            {"uid": user_id, "limit": limit},
         ).fetchall()
-        transactions = [dict(row) for row in rows]
-        for t in transactions:
-            t["tx_timestamp"] = to_local_time_str(t["tx_timestamp"])
-        return transactions
-    except sqlite3.Error as e:
-        raise RuntimeError(f"Failed to fetch transactions: {e}") from e
-    finally:
-        conn.close()
+        return [dict(row._mapping) for row in rows]
+
+
+def query_transactions(user_id: str, category: str = None, category_mode: str = "include",
+                       start_date: str = None, end_date: str = None, limit: int = None,
+                       item_hint: str = None):
+    engine = _get_engine()
+    with engine.begin() as conn:
+        query = "SELECT item, amount, category, tx_timestamp FROM transactions WHERE user_id = :uid"
+        params = {"uid": user_id}
+
+        if item_hint:
+            query += " AND item LIKE :item_hint"
+            params["item_hint"] = f"%{item_hint}%"
+        if category:
+            if category_mode == "exclude":
+                query += " AND category != :category"
+            else:
+                query += " AND category = :category"
+            params["category"] = category
+        if start_date:
+            query += " AND tx_timestamp >= :start_date"
+            params["start_date"] = f"{start_date} 00:00:00"
+        if end_date:
+            query += " AND tx_timestamp <= :end_date"
+            params["end_date"] = f"{end_date} 23:59:59"
+        query += " ORDER BY tx_timestamp DESC"
+        if limit:
+            query += " LIMIT :limit"
+            params["limit"] = limit
+
+        rows = conn.execute(text(query), params).fetchall()
+        return [dict(row._mapping) for row in rows]
+
+
+def update_transaction(user_id: str, tx_id: int, **fields) -> bool:
+    """Update specific fields of a transaction. Returns True if updated."""
+    allowed = {"item", "amount", "category"}
+    updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
+    if not updates:
+        return False
+
+    engine = _get_engine()
+    with engine.begin() as conn:
+        set_clause = ", ".join(f"{k} = :{k}" for k in updates)
+        params = {"uid": user_id, "id": tx_id, **updates}
+        result = conn.execute(
+            text(f"UPDATE transactions SET {set_clause} WHERE id = :id AND user_id = :uid"),
+            params,
+        )
+        return result.rowcount > 0
+
+
+def delete_transaction(user_id: str, tx_id: int) -> bool:
+    engine = _get_engine()
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("DELETE FROM transactions WHERE id = :id AND user_id = :uid"),
+            {"id": tx_id, "uid": user_id},
+        )
+        return result.rowcount > 0
+
+
+# ── User tone ─────────────────────────────────────────────────────────
 
 def get_user_tone(user_id: str) -> str:
     """Returns the user's tone preference, defaulting to 'neutral'."""
-    conn = get_connection()
-    try:
+    engine = _get_engine()
+    with engine.begin() as conn:
         row = conn.execute(
-            "SELECT tone_pref FROM users WHERE id = ?", (user_id,)
+            text("SELECT tone_pref FROM users WHERE id = :uid"),
+            {"uid": user_id},
         ).fetchone()
-        return row["tone_pref"] if row else "neutral"
-    finally:
-        conn.close()
+        return row[0] if row else "neutral"
 
 
 def set_user_tone(user_id: str, tone: str):
-    """Updates the user's tone preference."""
-    conn = get_connection()
-    try:
+    engine = _get_engine()
+    with engine.begin() as conn:
         conn.execute(
-            "UPDATE users SET tone_pref = ? WHERE id = ?", (tone, user_id)
+            text("UPDATE users SET tone_pref = :tone WHERE id = :uid"),
+            {"tone": tone, "uid": user_id},
         )
-        conn.commit()
-    finally:
-        conn.close()
 
-def query_transactions(user_id: str, category: str = None, category_mode: str = "include",
-                        start_date: str = None, end_date: str = None, limit: int = None,
-                        item_hint: str = None):
-    conn = get_connection()
-    try:
-        query = "SELECT item, amount, category, tx_timestamp FROM transactions WHERE user_id = ?"
-        params = [user_id]
 
-        if item_hint:
-            query += " AND item LIKE ?"
-            params.append(f"%{item_hint}%")
-        if category:
-            if category_mode == "exclude":
-                query += " AND category != ?"
-            else:
-                query += " AND category = ?"
-            params.append(category)
-        if start_date:
-            query += " AND date(tx_timestamp) >= date(?)"
-            params.append(start_date)
-        if end_date:
-            query += " AND date(tx_timestamp) <= date(?)"
-            params.append(end_date)
+# ── Spending helpers ──────────────────────────────────────────────────
 
-        query += " ORDER BY tx_timestamp DESC"
-        if limit:
-            query += " LIMIT ?"
-            params.append(limit)
+def get_month_spent(user_id: str, category: str) -> float:
+    """Total spent this calendar month for a category."""
+    engine = _get_engine()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "SELECT COALESCE(SUM(amount), 0) FROM transactions "
+                "WHERE user_id = :uid AND category = :cat "
+                "AND tx_timestamp >= date_trunc('month', now())"
+            ),
+            {"uid": user_id, "cat": category},
+        ).fetchone()
+        return float(row[0]) if row else 0.0
 
-        rows = conn.execute(query, params).fetchall()
-        transactions = [dict(row) for row in rows]
-        for t in transactions:
-            t["tx_timestamp"] = to_local_time_str(t["tx_timestamp"])
-        total = sum(t["amount"] for t in transactions)
-        return {"transactions": transactions, "total": total, "count": len(transactions)}
-    except sqlite3.Error as e:
-        raise RuntimeError(f"Failed to query transactions: {e}") from e
-    finally:
-        conn.close()
 
-def set_budget(user_id: str, category: str, limit_amount: float, period: str = "monthly"):
-    if limit_amount <= 0:
-        raise ValueError("limit_amount must be positive")
-    conn = get_connection()
-    try:
+# ── Transaction search ───────────────────────────────────────────────
+
+def find_best_match_transaction(user_id: str, item_hint: str, limit: int = 5):
+    """Find transactions matching item_hint (fuzzy LIKE)."""
+    engine = _get_engine()
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT id, item, amount, category, tx_timestamp "
+                "FROM transactions WHERE user_id = :uid "
+                "AND item ILIKE :hint "
+                "ORDER BY tx_timestamp DESC LIMIT :limit"
+            ),
+            {"uid": user_id, "hint": f"%{item_hint}%", "limit": limit},
+        ).fetchall()
+        return [dict(row._mapping) for row in rows]
+
+
+# ── Interaction log ──────────────────────────────────────────────────
+
+def log_interaction(user_id: str, prompt: str, response: str, intent: str = "chat"):
+    """Log a user-assistant interaction."""
+    engine = _get_engine()
+    with engine.begin() as conn:
         conn.execute(
-            """
-            INSERT INTO budgets (user_id, category, limit_amount, period)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(user_id, category, period)
-            DO UPDATE SET limit_amount = excluded.limit_amount
-            """,
-            (user_id, category, limit_amount, period),
+            text(
+                "INSERT INTO interaction_log (user_id, prompt, response, intent) "
+                "VALUES (:uid, :prompt, :response, :intent)"
+            ),
+            {"uid": user_id, "prompt": prompt, "response": response, "intent": intent},
         )
-        conn.commit()
-    except sqlite3.Error as e:
-        conn.rollback()
-        raise RuntimeError(f"Failed to set budget: {e}") from e
-    finally:
-        conn.close()
-
-
-def get_budget(user_id: str, category: str, period: str = "monthly"):
-    conn = get_connection()
-    try:
-        row = conn.execute(
-            "SELECT limit_amount FROM budgets WHERE user_id=? AND category=? AND period=?",
-            (user_id, category, period),
-        ).fetchone()
-        return row["limit_amount"] if row else None
-    finally:
-        conn.close()
-
-
-def get_month_spent(user_id: str, category: str):
-    """Total spent in the given category so far this calendar month."""
-    from datetime import date
-    start_of_month = date.today().replace(day=1).isoformat()
-    conn = get_connection()
-    try:
-        row = conn.execute(
-            """
-            SELECT COALESCE(SUM(amount), 0) as total FROM transactions
-            WHERE user_id=? AND category=? AND date(tx_timestamp) >= date(?)
-            """,
-            (user_id, category, start_of_month),
-        ).fetchone()
-        return row["total"]
-    finally:
-        conn.close()
-
-def get_transaction_by_id(tx_id: int):
-    conn = get_connection()
-    try:
-        row = conn.execute(
-            "SELECT id, item, amount, category, tx_timestamp FROM transactions WHERE id = ?",
-            (tx_id,),
-        ).fetchone()
-        return dict(row) if row else None
-    finally:
-        conn.close()
-
-
-def find_best_match_transaction(user_id: str, item_hint: str = None, limit: int = 5):
-    """Returns recent transactions, optionally filtered by an item keyword,
-    for resolving which transaction an edit message refers to."""
-    conn = get_connection()
-    try:
-        query = "SELECT id, item, amount, category, tx_timestamp FROM transactions WHERE user_id = ?"
-        params = [user_id]
-        if item_hint:
-            query += " AND item LIKE ?"
-            params.append(f"%{item_hint}%")
-        query += " ORDER BY tx_timestamp DESC LIMIT ?"
-        params.append(limit)
-        rows = conn.execute(query, params).fetchall()
-        transactions = [dict(row) for row in rows]
-        for t in transactions:
-            t["tx_timestamp"] = to_local_time_str(t["tx_timestamp"])
-        return transactions
-    finally:
-        conn.close()
-
-
-def update_transaction(tx_id: int, item: str = None, amount: float = None, category: str = None):
-    if amount is not None and amount <= 0:
-        raise ValueError("amount must be positive")
-    conn = get_connection()
-    try:
-        fields, params = [], []
-        if item is not None:
-            fields.append("item = ?"); params.append(item)
-        if amount is not None:
-            fields.append("amount = ?"); params.append(amount)
-        if category is not None:
-            fields.append("category = ?"); params.append(category)
-        if not fields:
-            return
-        params.append(tx_id)
-        conn.execute(f"UPDATE transactions SET {', '.join(fields)} WHERE id = ?", params)
-        conn.commit()
-    except sqlite3.Error as e:
-        conn.rollback()
-        raise RuntimeError(f"Failed to update transaction: {e}") from e
-    finally:
-        conn.close()
-
-def log_interaction(user_id: str, raw_message: str, intent: str, extracted: dict, response: str):
-    """Best-effort logging — never let a logging failure break the app."""
-    import json as json_module
-    conn = get_connection()
-    try:
-        conn.execute(
-            "INSERT INTO interaction_log (user_id, raw_message, intent, extracted_json, response) VALUES (?, ?, ?, ?, ?)",
-            (user_id, raw_message, intent, json_module.dumps(extracted) if extracted else None, response),
-        )
-        conn.commit()
-    except Exception:
-        pass  # logging must never crash the main flow
-    finally:
-        conn.close()
-
-def delete_transaction(tx_id: int):
-    conn = get_connection()
-    try:
-        conn.execute("DELETE FROM transactions WHERE id = ?", (tx_id,))
-        conn.commit()
-    except sqlite3.Error as e:
-        conn.rollback()
-        raise RuntimeError(f"Failed to delete transaction: {e}") from e
-    finally:
-        conn.close()
-
-from datetime import timedelta
-
-PH_OFFSET = timedelta(hours=8)  # Philippines is UTC+8
-
-def to_local_time_str(dt_or_str):
-    """Converts a stored UTC timestamp to a PH-local display string."""
-    from datetime import datetime
-    if isinstance(dt_or_str, str):
-        dt = datetime.strptime(dt_or_str, "%Y-%m-%d %H:%M:%S")
-    else:
-        dt = dt_or_str
-    local_dt = dt + PH_OFFSET
-    return local_dt.strftime("%Y-%m-%d %H:%M")
-
-def get_all_budgets_and_spending(user_id: str, categories: list):
-    """Single pass: returns {category: {limit, spent}} for every category."""
-    from datetime import date
-    start_of_month = date.today().replace(day=1).isoformat()
-
-    conn = get_connection()
-    try:
-        budget_rows = {}
-        for row in conn.execute(
-            "SELECT category, limit_amount FROM budgets WHERE user_id = ? AND period = 'monthly'",
-            (user_id,),
-        ).fetchall():
-            budget_rows[row["category"]] = row["limit_amount"]
-
-        spent_rows = {}
-        for row in conn.execute(
-            """
-            SELECT category, COALESCE(SUM(amount), 0) as total
-            FROM transactions
-            WHERE user_id = ? AND date(tx_timestamp) >= date(?)
-            GROUP BY category
-            """,
-            (user_id, start_of_month),
-        ).fetchall():
-            spent_rows[row["category"]] = row["total"]
-
-        return {
-            cat: {"limit": budget_rows.get(cat), "spent": spent_rows.get(cat, 0.0)}
-            for cat in categories
-        }
-    finally:
-        conn.close()

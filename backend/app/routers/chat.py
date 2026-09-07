@@ -298,6 +298,55 @@ def _handle_pending_conversion(prompt: str, user_id: str) -> tuple[str, str, boo
     return None  # replaced by route-level logic
 
 
+def _apply_wallet_for_tx(user_id: str, tx: dict, segment: str) -> str:
+    """Detect wallet from a single segment and apply it to the transaction."""
+    if not tx:
+        return ""
+    wallets = wallet_backend.list_wallets(user_id) if wallet_backend.available() else []
+    if not wallets:
+        return ""
+
+    amount = float(tx.get("amount") or 0)
+    item = str(tx.get("item") or "purchase")
+    tx_id = int(tx.get("transaction_id") or 0)
+
+    match = wallet_backend.detect_wallet_in_text(wallets, segment)
+    if match is None:
+        try:
+            from app.services import wallet_llm
+            hint = wallet_llm.extract_wallet_reference(segment)
+        except Exception as e:
+            logger.exception(f"wallet reference lookup failed: {e}")
+            hint = ""
+        if hint:
+            match = wallet_backend.match_wallet(wallets, hint)
+
+    if match is not None:
+        updated = wallet_backend.apply_purchase(
+            user_id, int(match["id"]), amount, item, tx_id or None
+        )
+        if updated is not None:
+            # Store wallet name on the transaction
+            if tx_id:
+                try:
+                    from app.services.db_backend import get_engine
+                    from sqlalchemy import text as sa_text
+                    engine = get_engine()
+                    with engine.begin() as conn:
+                        conn.execute(
+                            sa_text("UPDATE transactions SET wallet = :wallet WHERE id = :id AND user_id = :uid"),
+                            {"wallet": match["name"], "id": tx_id, "uid": user_id},
+                        )
+                except Exception:
+                    pass
+            return (
+                f"💰 Taken from {updated['name']} — ₱"
+                f"{wallet_backend.money(updated['balance'])} left."
+            )
+
+    return ""
+
+
 def _apply_wallet_for_last_tx(user_id: str, prompt: str, tx: dict) -> str:
     if not tx:
         return ""
@@ -523,7 +572,50 @@ async def send_message(req: ChatRequest, user_id: str = Depends(get_current_user
     pending_wallet_resp = None
     awaiting_wallet = False
     wallet_choices: list[WalletChoice] = []
-    if not fatal_error and last_tx:
+    if not fatal_error and result.get("transactions"):
+        # Multi-action: process each logged transaction's wallet
+        wallet_notes: list[str] = []
+        remaining_txs: list[dict] = []
+        for tx in result["transactions"]:
+            if result.get("pending_conversion") or result.get("pending_edit"):
+                break  # stop if a follow-up question is pending
+            # If wallet was already auto-linked in nodes.py, skip re-detection
+            if tx.get("wallet"):
+                wallet_notes.append(
+                    tx.get("wallet_note", f"💰 Taken from {tx['wallet']} — balance updated.")
+                )
+                continue
+            try:
+                wn = _apply_wallet_for_tx(user_id, tx, tx.get("raw_segment", prompt))
+            except Exception as e:
+                logger.exception(f"wallet linking failed for tx {tx.get('transaction_id')}: {e}")
+                wn = ""
+            if wn:
+                wallet_notes.append(wn)
+            else:
+                remaining_txs.append(tx)
+        if wallet_notes:
+            response_text = f"{response_text}\n\n" + "\n\n".join(wallet_notes)
+        if remaining_txs and not result.get("pending_conversion") and not result.get("pending_edit"):
+            # Ask user to pick wallets for unmatched transactions
+            wallets = wallet_backend.list_wallets(user_id) if wallet_backend.available() else []
+            if wallets and remaining_txs:
+                pending_wallet_resp = remaining_txs[0]
+                wallet_choices = _wallet_choice_payload(wallets)
+                awaiting_wallet = True
+                response_text = (
+                    f"{response_text}\n\n"
+                    "Which wallet did this come from? Tap one below to finish "
+                    "logging it — a wallet is required."
+                )
+            elif not wallets:
+                for tx in remaining_txs:
+                    wn = _default_cash_for_last_tx(user_id, tx)
+                    wallet_notes.append(wn)
+                if wallet_notes:
+                    response_text = f"{response_text}\n\n" + "\n\n".join(wallet_notes)
+    elif not fatal_error and last_tx:
+        # Legacy single-tx path
         try:
             wallet_note = _apply_wallet_for_last_tx(user_id, prompt, last_tx)
         except Exception as e:
@@ -534,12 +626,9 @@ async def send_message(req: ChatRequest, user_id: str = Depends(get_current_user
         else:
             wallets = wallet_backend.list_wallets(user_id) if wallet_backend.available() else []
             if not wallets:
-                # No wallets yet → default the purchase to a Cash wallet; no gate.
                 wallet_note = _default_cash_for_last_tx(user_id, last_tx)
                 response_text = f"{response_text}\n\n{wallet_note}"
             elif not req.require_wallet:
-                # Client signalled no Debit wallets exist (or chose to skip the
-                # gate) → default to Cash rather than forcing a choice.
                 wallet_note = _default_cash_for_last_tx(user_id, last_tx)
                 response_text = f"{response_text}\n\n{wallet_note}"
             else:

@@ -206,22 +206,13 @@ export default function ChatPage() {
     saveChat({ messages, pendingWallet, walletChoices, awaitingWallet });
   }, [messages, pendingWallet, walletChoices, awaitingWallet, ready]);
 
-  // Surfaced notifications: error + assistant budget warnings appear as a
+  // Surfaced notifications: only errors appear as a
   // global toast (top-right, slides in from the right) so the user is
   // notified immediately even when scrolled to the bottom on mobile.
   // Depends only on [error] — toastPush is stable, so this won't loop.
   useEffect(() => {
     if (error) toastPush(error, "danger");
   }, [error, toastPush]);
-
-  useEffect(() => {
-    const last = messages[messages.length - 1];
-    if (last && last.role === "assistant" && last.alert) {
-      toastPush(last.text, last.alert === "danger" ? "danger" : "warning");
-    }
-    // Only react to the newest assistant message's alert.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length]);
 
   function clearChat() {
     setMessages([]);
@@ -458,7 +449,7 @@ export default function ChatPage() {
             ) : (
               /* Thread — fixed responsive height that fits the viewport so the
                  page itself doesn't scroll; only the conversation scrolls. */
-              <div className="h-[calc(100dvh-420px)] md:h-[calc(100dvh-460px)] lg:h-[calc(100dvh-470px)] overflow-y-auto">
+              <div className="h-[calc(100dvh-280px)] md:h-[calc(100dvh-300px)] lg:h-[calc(100dvh-310px)] overflow-y-auto">
                 {messages.map((m, i) =>
                   m.role === "user" ? (
                     <div key={i} className="flex justify-end py-2.5">

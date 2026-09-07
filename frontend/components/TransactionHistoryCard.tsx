@@ -15,8 +15,22 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   Income:        { bg: "#D1FAE5", text: "#047857" },
 };
 
+const WALLET_COLORS: Record<string, { bg: string; text: string }> = {
+  GCash:     { bg: "#E0F5EF", text: "#0D9488" },
+  Cash:      { bg: "#FEF3C7", text: "#B45309" },
+  BPI:       { bg: "#DBEAFE", text: "#1D4ED8" },
+  "BPI Savings": { bg: "#DBEAFE", text: "#1D4ED8" },
+  PSBank:    { bg: "#EDE9FE", text: "#6D28D9" },
+  Maya:      { bg: "#D1FAE5", text: "#047857" },
+  "On-hand": { bg: "#FEF3C7", text: "#B45309" },
+};
+
 function categoryColor(cat: string) {
   return CATEGORY_COLORS[cat] ?? { bg: "#F1F5F9", text: "#475569" };
+}
+
+function walletColor(wallet: string) {
+  return WALLET_COLORS[wallet] ?? { bg: "#F3F4F6", text: "#6B7280" };
 }
 
 function groupByDay(txs: TransactionRow[]): Map<string, TransactionRow[]> {
@@ -147,6 +161,7 @@ export function TransactionHistoryCard() {
 
                 {rows.map((t, i) => {
                   const cc = categoryColor(t.category);
+                  const wc = walletColor(t.wallet || "");
                   const isNeg = (t.amount ?? 0) < 0;
                   return (
                     <div
@@ -171,7 +186,10 @@ export function TransactionHistoryCard() {
                               {t.category || "Uncategorized"}
                             </span>
                             {t.wallet && (
-                              <span className="text-[9px] text-[color:var(--purch-muted-ink)]">
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                style={{ background: wc.bg, color: wc.text }}
+                              >
                                 {t.wallet}
                               </span>
                             )}

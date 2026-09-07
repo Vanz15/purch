@@ -57,17 +57,35 @@ async def list_transactions(
         params["q"] = f"%{q}%"
 
     where = " AND ".join(clauses)
+    rows = []
     try:
         with engine.connect() as conn:
-            rows = conn.execute(
-                text(
-                    f"SELECT id, item, amount, category, tx_timestamp "
-                    f"FROM transactions WHERE {where} "
-                    f"ORDER BY tx_timestamp DESC LIMIT :lim"
-                ),
-                params,
-            ).all()
-            # Distinct categories for the filter dropdown.
+            # Try with wallet first; fall back if column doesn't exist
+            try:
+                rows = conn.execute(
+                    text(
+                        f"SELECT id, item, amount, category, COALESCE(wallet, '') as wallet, tx_timestamp "
+                        f"FROM transactions WHERE {where} "
+                        f"ORDER BY tx_timestamp DESC LIMIT :lim"
+                    ),
+                    params,
+                ).all()
+            except Exception:
+                rows = None
+        # Retry on fresh connection without wallet column
+        if not rows:
+            with engine.connect() as conn:
+                rows = conn.execute(
+                    text(
+                        f"SELECT id, item, amount, category, '' as wallet, tx_timestamp "
+                        f"FROM transactions WHERE {where} "
+                        f"ORDER BY tx_timestamp DESC LIMIT :lim"
+                    ),
+                    params,
+                ).all()
+
+        # Distinct categories for the filter dropdown.
+        with engine.connect() as conn:
             cats = conn.execute(
                 text(
                     "SELECT DISTINCT category FROM transactions "
@@ -99,8 +117,8 @@ async def list_transactions(
                 amount=amt,
                 amount_display=backend.money(amt) if hasattr(backend, "money") else f"₱{amt:.2f}",
                 category=str(r[3] or ""),
-                tx_timestamp=_fmt(r[4]),
-                wallet=str(r[5]) if len(r) > 5 else "",
+                wallet=str(r[4] or ""),
+                tx_timestamp=_fmt(r[5]),
             )
         )
     return {

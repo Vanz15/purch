@@ -634,54 +634,10 @@ export default function AnalyticsPage() {
             </div>
           </FadeInSection>
 
-          {/* Budgets */}
-          {d && d.budgets.length > 0 && (
-            <FadeInSection className="mt-4" delay={200}>
-              <h3 className="font-sans font-semibold text-lg mb-3">Budget status</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {d.budgets.map((b, i) => {
-                  const fill =
-                    b.status === "over" ? "var(--purch-coral)" : b.status === "near" ? "var(--purch-gold)" : "var(--purch-accent)";
-                  return (
-                    <div key={i} className="rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
-                      <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-sans font-semibold text-base m-0" style={{ color: "var(--purch-ink)" }}>{b.category}</h4>
-                        <span
-                          className="text-[0.6rem] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
-                          style={{
-                            background: b.status === "over" ? "rgba(255,69,58,0.12)" : b.status === "near" ? "rgba(255,176,32,0.15)" : "rgba(10,132,255,0.15)",
-                            color: b.status === "over" ? "var(--purch-coral)" : b.status === "near" ? "var(--purch-gold)" : "var(--purch-accent)",
-                          }}
-                        >
-                          {b.status === "over" ? "Over budget" : b.status === "near" ? "Almost there" : "On track"}
-                        </span>
-                      </div>
-                      <div className="flex items-baseline mb-2">
-                        <span className="font-['JetBrains_Mono'] text-2xl font-bold" style={{ color: "var(--purch-ink)" }}>₱{b.spent.toLocaleString()}</span>
-                        <span className="font-['JetBrains_Mono'] text-xs text-[color:var(--purch-muted-ink)] ml-1">/ ₱{b.limit_amount.toLocaleString()}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full" style={{ background: "var(--purch-line)" }}>
-                        <div className="h-full rounded-full" style={{ width: `${Math.min(b.pct, 100)}%`, background: fill }} />
-                      </div>
-                      <div className="flex justify-between mt-1.5 text-[11.5px]">
-                        <span className="font-['JetBrains_Mono] text-[color:var(--purch-muted-ink)]">{b.pct.toFixed(0)}% used</span>
-                        {b.remaining >= 0 ? (
-                          <span className="font-['JetBrains_Mono] text-[color:var(--purch-teal)]">₱{b.remaining.toLocaleString()} left</span>
-                        ) : (
-                          <span className="font-['JetBrains_Mono] text-[color:var(--purch-coral)]">₱{(-b.remaining).toLocaleString()} over</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </FadeInSection>
-          )}
-
-          {/* ── User Budgets — add/edit/delete ── */}
-          <FadeInSection className="mt-4 rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }} delay={250}>
+          {/* Budgets — unified: add/edit/delete + spent/remaining */}
+          <FadeInSection className="mt-4 rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }} delay={200}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-sans font-semibold text-lg m-0">Your budgets</h3>
+              <h3 className="font-sans font-semibold text-lg m-0">Budgets</h3>
               <button
                 onClick={() => { setEditingBudgetId(null); setBudgetCat(""); setBudgetLimit(""); setBudgetFormOpen(!budgetFormOpen); }}
                 className="purch-btn-primary text-[13px] font-medium rounded-full px-4 py-1.5"
@@ -718,11 +674,66 @@ export default function AnalyticsPage() {
               </div>
             )}
 
-            {/* Budget list */}
-            {userBudgets.length > 0 ? (
+            {/* Budget cards — show analytics budgets if available, otherwise user budgets */}
+            {d && d.budgets.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {d.budgets.map((b, i) => {
+                  const fill =
+                    b.status === "over" ? "var(--purch-coral)" : b.status === "near" ? "var(--purch-gold)" : "var(--purch-accent)";
+                  const userBudget = userBudgets.find((ub) => ub.category.toLowerCase() === b.category.toLowerCase());
+                  return (
+                    <div key={i} className="rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-sans font-semibold text-base m-0" style={{ color: "var(--purch-ink)" }}>{b.category}</h4>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-[0.6rem] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                            style={{
+                              background: b.status === "over" ? "rgba(255,69,58,0.12)" : b.status === "near" ? "rgba(255,176,32,0.15)" : "rgba(10,132,255,0.15)",
+                              color: b.status === "over" ? "var(--purch-coral)" : b.status === "near" ? "var(--purch-gold)" : "var(--purch-accent)",
+                            }}
+                          >
+                            {b.status === "over" ? "Over budget" : b.status === "near" ? "Almost there" : "On track"}
+                          </span>
+                          {userBudget && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => { setEditingBudgetId(userBudget.id); setBudgetCat(userBudget.category); setBudgetLimit(String(userBudget.limit_amount)); setBudgetFormOpen(true); }}
+                                className="text-[10px] px-1.5 py-0.5 rounded-full hover:bg-[var(--purch-line)] transition-colors"
+                                style={{ color: "var(--purch-muted-ink)" }}
+                              >Edit</button>
+                              <button
+                                onClick={() => deleteBudget(userBudget.id)}
+                                className="text-[10px] px-1.5 py-0.5 rounded-full hover:bg-red-50 transition-colors"
+                                style={{ color: "var(--purch-coral)" }}
+                              >Del</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-baseline mb-2">
+                        <span className="font-['JetBrains_Mono'] text-2xl font-bold" style={{ color: "var(--purch-ink)" }}>₱{b.spent.toLocaleString()}</span>
+                        <span className="font-['JetBrains_Mono'] text-xs text-[color:var(--purch-muted-ink)] ml-1">/ ₱{b.limit_amount.toLocaleString()}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: "var(--purch-line)" }}>
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(b.pct, 100)}%`, background: fill }} />
+                      </div>
+                      <div className="flex justify-between mt-1.5 text-[11.5px]">
+                        <span className="font-['JetBrains_Mono] text-[color:var(--purch-muted-ink)]">{b.pct.toFixed(0)}% used</span>
+                        {b.remaining >= 0 ? (
+                          <span className="font-['JetBrains_Mono] text-[color:var(--purch-teal)]">₱{b.remaining.toLocaleString()} left</span>
+                        ) : (
+                          <span className="font-['JetBrains_Mono] text-[color:var(--purch-coral)]">₱{(-b.remaining).toLocaleString()} over</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : userBudgets.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {userBudgets.map((b) => (
-                  <div key={b.id} className="rounded-xl p-4 flex flex-col gap-2" style={{ background: "white", border: "1px solid var(--purch-line)" }}>
+                  <div key={b.id} className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }}>
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-sm" style={{ color: "var(--purch-ink)" }}>{b.category}</span>
                       <div className="flex gap-1.5">
