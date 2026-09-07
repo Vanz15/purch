@@ -224,4 +224,19 @@ export const api = {
         body: JSON.stringify({ tone }),
       }),
   },
+  budgets: {
+    list: () => retryFetch<any[]>("/api/budgets"),
+    create: (body: { category: string; limit_amount: number; period?: string }) =>
+      retryFetch("/api/budgets", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    update: (id: number, body: { category?: string; limit_amount?: number }) =>
+      retryFetch(`/api/budgets/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    delete: (id: number) =>
+      retryFetch(`/api/budgets/${id}`, { method: "DELETE" }),
+  },
 };

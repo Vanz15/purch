@@ -326,6 +326,56 @@ export default function AnalyticsPage() {
   const [editCategory, setEditCategory] = useState("");
   const [txBusy, setTxBusy] = useState(false);
 
+  // ── Budget state ──
+  const [userBudgets, setUserBudgets] = useState<any[]>([]);
+  const [budgetFormOpen, setBudgetFormOpen] = useState(false);
+  const [editingBudgetId, setEditingBudgetId] = useState<number | null>(null);
+  const [budgetCat, setBudgetCat] = useState("");
+  const [budgetLimit, setBudgetLimit] = useState("");
+  const [budgetBusy, setBudgetBusy] = useState(false);
+
+  async function loadBudgets() {
+    try {
+      const b = await api.budgets.list();
+      setUserBudgets(b || []);
+    } catch { /* optional */ }
+  }
+
+  async function saveBudget() {
+    if (!budgetCat.trim() || !budgetLimit) { setError("Category and limit are required."); return; }
+    setBudgetBusy(true);
+    setError("");
+    try {
+      if (editingBudgetId) {
+        await api.budgets.update(editingBudgetId, { category: budgetCat.trim(), limit_amount: Number(budgetLimit) });
+      } else {
+        await api.budgets.create({ category: budgetCat.trim(), limit_amount: Number(budgetLimit) });
+      }
+      setBudgetFormOpen(false);
+      setEditingBudgetId(null);
+      setBudgetCat("");
+      setBudgetLimit("");
+      await loadBudgets();
+      await load(year, month); // refresh analytics to recalc spent
+    } catch (e: any) {
+      setError(e.message || "Failed to save budget.");
+    } finally {
+      setBudgetBusy(false);
+    }
+  }
+
+  async function deleteBudget(id: number) {
+    if (!confirm("Delete this budget?")) return;
+    setError("");
+    try {
+      await api.budgets.delete(id);
+      await loadBudgets();
+      await load(year, month);
+    } catch (e: any) {
+      setError(e.message || "Failed to delete budget.");
+    }
+  }
+
   async function saveTx(id: number) {
     setTxBusy(true);
     setError("");
@@ -387,10 +437,12 @@ export default function AnalyticsPage() {
         setAuthed(true);
         load(curY, curM);
         loadTransactions("", "");
+        loadBudgets();
       } else if (isGuest()) {
         setAuthed(true);
         load(curY, curM);
         loadTransactions("", "");
+        loadBudgets();
       } else {
         setAuthed(false);
       }
@@ -625,6 +677,78 @@ export default function AnalyticsPage() {
               </div>
             </FadeInSection>
           )}
+
+          {/* ── User Budgets — add/edit/delete ── */}
+          <FadeInSection className="mt-4 rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }} delay={250}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-sans font-semibold text-lg m-0">Your budgets</h3>
+              <button
+                onClick={() => { setEditingBudgetId(null); setBudgetCat(""); setBudgetLimit(""); setBudgetFormOpen(!budgetFormOpen); }}
+                className="purch-btn-primary text-[13px] font-medium rounded-full px-4 py-1.5"
+              >
+                {budgetFormOpen ? "Cancel" : "+ Add budget"}
+              </button>
+            </div>
+
+            {/* Add / Edit form */}
+            {budgetFormOpen && (
+              <div className="flex flex-col sm:flex-row gap-2.5 mb-4 p-3 rounded-xl" style={{ background: "var(--purch-line)", border: "1px solid var(--purch-line)" }}>
+                <input
+                  value={budgetCat}
+                  onChange={(e) => setBudgetCat(e.target.value)}
+                  placeholder="Category name (e.g. Food)"
+                  className="flex-1 rounded-lg px-3 py-2 text-sm bg-white outline-none"
+                  style={{ border: "1px solid var(--purch-line)", color: "var(--purch-ink)" }}
+                />
+                <input
+                  type="number"
+                  value={budgetLimit}
+                  onChange={(e) => setBudgetLimit(e.target.value)}
+                  placeholder="Monthly limit (₱)"
+                  className="w-full sm:w-40 rounded-lg px-3 py-2 text-sm bg-white outline-none"
+                  style={{ border: "1px solid var(--purch-line)", color: "var(--purch-ink)" }}
+                />
+                <button
+                  onClick={saveBudget}
+                  disabled={budgetBusy}
+                  className="purch-btn-primary text-[13px] font-medium rounded-full px-5 py-2 disabled:opacity-60"
+                >
+                  {budgetBusy ? "Saving…" : editingBudgetId ? "Update" : "Save"}
+                </button>
+              </div>
+            )}
+
+            {/* Budget list */}
+            {userBudgets.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {userBudgets.map((b) => (
+                  <div key={b.id} className="rounded-xl p-4 flex flex-col gap-2" style={{ background: "white", border: "1px solid var(--purch-line)" }}>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm" style={{ color: "var(--purch-ink)" }}>{b.category}</span>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => { setEditingBudgetId(b.id); setBudgetCat(b.category); setBudgetLimit(String(b.limit_amount)); setBudgetFormOpen(true); }}
+                          className="text-[11px] px-2 py-0.5 rounded-full hover:bg-[var(--purch-line)] transition-colors"
+                          style={{ color: "var(--purch-muted-ink)" }}
+                        >Edit</button>
+                        <button
+                          onClick={() => deleteBudget(b.id)}
+                          className="text-[11px] px-2 py-0.5 rounded-full hover:bg-red-50 transition-colors"
+                          style={{ color: "var(--purch-coral)" }}
+                        >Delete</button>
+                      </div>
+                    </div>
+                    <span className="font-['JetBrains_Mono'] text-lg font-bold" style={{ color: "var(--purch-ink)" }}>₱{b.limit_amount.toLocaleString()}</span>
+                    <span className="text-[11px]" style={{ color: "var(--purch-muted-ink)" }}>per {b.period}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm italic m-0" style={{ color: "var(--purch-muted-ink)" }}>
+                No budgets yet. Add one to start tracking spending limits per category.
+              </p>
+            )}
+          </FadeInSection>
 
           {/* All transactions — filter by category + searchable */}
           <FadeInSection className="mt-4 rounded-2xl p-5" style={{ background: "var(--purch-paper)", boxShadow: "var(--purch-shadow-sm)" }} delay={300}>
